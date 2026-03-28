@@ -334,43 +334,39 @@ function runCensor(msg){
   return{blocked:false};
 }
 
+const GEMINI_KEY = 'AIzaSyB864hmCeungzSb4_BtuB6gaM1dS6UwwvE';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+
 async function callAPI(userMessage) {
-  sessionHistory.push({role:'user',content:userMessage});
-  if (sessionHistory.length>40) sessionHistory=sessionHistory.slice(-40);
+  sessionHistory.push({role:'user', content:userMessage});
+  if (sessionHistory.length > 40) sessionHistory = sessionHistory.slice(-40);
 
   const systemPrompt = buildSystemPrompt();
 
-  // Use window.claude if available (artifact environment)
-  if (typeof window !== 'undefined' && window.claude) {
-    const response = await window.claude.complete({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: sessionHistory,
-    });
-    const replyText = response?.content?.[0]?.text || '…';
-    sessionHistory.push({role:'assistant',content:replyText});
-    return replyText;
-  }
+  // Convert to Gemini format
+  const contents = sessionHistory.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
 
-  // Fallback: direct API call (works when hosted with proper CORS/key setup)
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:300,
-      system:systemPrompt,
-      messages:sessionHistory,
+  const response = await fetch(GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents,
+      generationConfig: { maxOutputTokens: 300, temperature: 0.9 },
     }),
   });
+
   if (!response.ok) {
-    const err = await response.json().catch(()=>({}));
-    throw new Error(err.error?.message||`API error ${response.status}`);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Gemini error ${response.status}`);
   }
+
   const data = await response.json();
-  const replyText = data.content?.find(b=>b.type==='text')?.text||'…';
-  sessionHistory.push({role:'assistant',content:replyText});
+  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '…';
+  sessionHistory.push({role:'assistant', content:replyText});
   return replyText;
 }
 
@@ -672,8 +668,8 @@ function showToast(msg){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-window.addEventListener('online',()=>{if(db){showToast('🔥 Back online — syncing…');loadBrain();}});
-window.addEventListener('offline',()=>showToast('📴 Offline — local brain only'));
+window.addEventListener('online',()=>{showToast('🔥 Back online — syncing…');connectFirebase();});
+window.addEventListener('offline',()=>{isOnline=false;updateStatusDot(false);showToast('📴 Offline — local brain only');});
 
 // Boot
 loadBrainLocally();
