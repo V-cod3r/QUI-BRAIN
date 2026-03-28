@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#0a0a14"/>
+<link rel="manifest" href="data:application/json,{%22name%22:%22QUIP%22,%22short_name%22:%22QUIP%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a14%22,%22theme_color%22:%22%2300f5d4%22}"/>
+<title>QUIP — The Living Mind</title>
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+<!-- Firebase v10 Compat (CDN) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+
+<style>
+/* ─── RESET & BASE ─── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:         #07070f;
+  --surface:    #0d0d1e;
+  --panel:      #12122a;
+  --border:     #1e1e42;
+  --cyan:       #00f5d4;
+  --magenta:    #ff2d78;
+  --amber:      #ffb703;
+  --dim:        #4a4a7a;
+  --text:       #cccde8;
+  --text-dim:   #6667a0;
+  --glow-c:     0 0 20px rgba(0,245,212,.35);
+  --glow-m:     0 0 20px rgba(255,45,120,.35);
+  --glow-a:     0 0 20px rgba(255,183,3,.35);
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-mono:    'Syne Mono', monospace;
+  --font-body:    'DM Sans', sans-serif;
+  --r:8px;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  font-size:15px;
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+}
+
+/* ─── SCANLINES OVERLAY ─── */
+body::before{
+  content:'';
+  position:fixed;inset:0;pointer-events:none;z-index:999;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.08) 2px,
+    rgba(0,0,0,.08) 4px
+  );
+}
+
+/* ─── HEADER ─── */
+header{
+  flex:none;
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  padding:12px 20px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  position:relative;
+  overflow:hidden;
+}
+header::after{
+  content:'';
+  position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan),var(--magenta),transparent);
+  animation:scanH 3s linear infinite;
+}
+@keyframes scanH{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+
+.logo{
+  font-family:var(--font-display);
+  font-size:2.4rem;
+  letter-spacing:.12em;
+  background:linear-gradient(135deg,var(--cyan),var(--magenta));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  text-shadow:none;
+  filter:drop-shadow(0 0 12px rgba(0,245,212,.6));
+  justify-self:center;
+  line-height:1;
+}
+.logo span{font-size:.9rem;letter-spacing:.3em;display:block;text-align:center;
+  background:linear-gradient(90deg,var(--amber),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  font-family:var(--font-mono);
+}
+.status-bar{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);
+}
+.dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--dim);transition:background .3s,box-shadow .3s;
+}
+.dot.live{background:var(--cyan);box-shadow:var(--glow-c);}
+.dot.warn{background:var(--amber);box-shadow:var(--glow-a);}
+#statusLabel{transition:color .3s}
+.header-right{
+  display:flex;align-items:center;gap:10px;justify-content:flex-end;
+}
+.icon-btn{
+  background:none;border:1px solid var(--border);
+  color:var(--text-dim);cursor:pointer;
+  width:34px;height:34px;border-radius:6px;
+  display:grid;place-items:center;font-size:1rem;
+  transition:all .2s;
+}
+.icon-btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-c);}
+.icon-btn.active{border-color:var(--magenta);color:var(--magenta);box-shadow:var(--glow-m);}
+
+/* ─── PERSONALITY TICKER ─── */
+#ticker{
+  flex:none;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  padding:5px 0;overflow:hidden;
+  font-family:var(--font-mono);font-size:.68rem;color:var(--amber);
+  white-space:nowrap;
+}
+#tickerInner{
+  display:inline-block;
+  animation:tick 30s linear infinite;
+}
+@keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+/* ─── MAIN LAYOUT ─── */
+main{
+  flex:1;
+  display:grid;
+  grid-template-columns:220px 1fr;
+  min-height:0;
+}
+@media(max-width:640px){
+  main{grid-template-columns:1fr}
+  aside{display:none}
+}
+
+/* ─── SIDEBAR ─── */
+aside{
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.sidebar-section{
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+.sidebar-label{
+  font-family:var(--font-mono);font-size:.62rem;
+  letter-spacing:.15em;color:var(--text-dim);
+  text-transform:uppercase;margin-bottom:10px;
+}
+/* Personality meter */
+.trait-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:7px;
+}
+.trait-name{
+  font-family:var(--font-mono);font-size:.67rem;
+  color:var(--text-dim);width:70px;flex:none;
+}
+.trait-bar{
+  flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;
+}
+.trait-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+  transition:width 1s ease;
+}
+.trait-val{
+  font-family:var(--font-mono);font-size:.62rem;
+  color:var(--text-dim);width:26px;text-align:right;
+}
+/* Global stats */
+.stat-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;
+}
+.stat-card{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--r);padding:10px 8px;text-align:center;
+}
+.stat-num{
+  font-family:var(--font-display);font-size:1.3rem;
+  color:var(--cyan);display:block;line-height:1;
+}
+.stat-lbl{
+  font-family:var(--font-mono);font-size:.58rem;
+  color:var(--text-dim);margin-top:3px;display:block;
+}
+/* Phase */
+.phase-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:20px;padding:5px 12px;
+  font-family:var(--font-mono);font-size:.68rem;color:var(--amber);
+  margin-bottom:6px;
+}
+.phase-icon{font-size:.9rem;}
+.phase-desc{
+  font-size:.67rem;color:var(--text-dim);line-height:1.5;
+}
+/* Learned phrases */
+#phraseList{
+  list-style:none;max-height:120px;overflow-y:auto;
+}
+#phraseList li{
+  font-family:var(--font-mono);font-size:.65rem;
+  color:var(--text-dim);padding:4px 6px;
+  border-left:2px solid var(--magenta);
+  margin-bottom:4px;background:var(--panel);border-radius:0 4px 4px 0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* ─── CHAT PANEL ─── */
+.chat-wrap{
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+#messages{
+  flex:1;overflow-y:auto;
+  padding:20px 24px;
+  display:flex;flex-direction:column;
+  gap:16px;
+  scroll-behavior:smooth;
+}
+#messages::-webkit-scrollbar{width:4px}
+#messages::-webkit-scrollbar-track{background:transparent}
+#messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Welcome banner */
+.welcome{
+  text-align:center;padding:40px 20px;
+  animation:fadeIn .6s ease;
+}
+.welcome-logo{
+  font-family:var(--font-display);font-size:4rem;
+  background:linear-gradient(135deg,var(--cyan),var(--magenta),var(--amber));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 30px rgba(0,245,212,.5));
+  line-height:1;margin-bottom:8px;
+}
+.welcome-sub{
+  font-family:var(--font-mono);font-size:.78rem;
+  color:var(--text-dim);letter-spacing:.1em;margin-bottom:24px;
+}
+.welcome-chips{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px;
+}
+.chip{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:20px;padding:7px 14px;
+  font-size:.78rem;color:var(--text-dim);cursor:pointer;
+  transition:all .2s;
+}
+.chip:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-1px);}
+
+/* Message bubbles */
+.msg{
+  display:flex;gap:12px;align-items:flex-start;
+  animation:slideUp .3s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse;}
+.avatar{
+  width:36px;height:36px;border-radius:8px;flex:none;
+  display:grid;place-items:center;
+  font-size:1rem;font-family:var(--font-mono);
+  border:1px solid var(--border);
+}
+.avatar.quip{
+  background:linear-gradient(135deg,#0d1a24,#0d241f);
+  border-color:var(--cyan);
+  color:var(--cyan);
+  box-shadow:var(--glow-c);
+  font-size:1.2rem;
+}
+.avatar.user{
+  background:var(--panel);
+  border-color:var(--magenta);
+  color:var(--magenta);
+  font-size:.75rem;letter-spacing:.05em;
+}
+.bubble{
+  max-width:72%;
+  border-radius:12px;
+  padding:12px 16px;
+  line-height:1.6;
+  position:relative;
+  font-size:.9rem;
+}
+.msg.quip .bubble{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-top-left-radius:2px;
+  color:var(--text);
+}
+.msg.user .bubble{
+  background:linear-gradient(135deg,rgba(255,45,120,.12),rgba(0,245,212,.08));
+  border:1px solid rgba(255,45,120,.3);
+  border-top-right-radius:2px;
+  color:var(--text);
+}
+.bubble-meta{
+  font-family:var(--font-mono);font-size:.58rem;
+  color:var(--text-dim);margin-top:5px;
+  display:flex;align-items:center;gap:6px;
+}
+.trait-tag{
+  background:var(--border);
+  color:var(--amber);
+  border-radius:4px;padding:1px 5px;
+  font-size:.58rem;
+}
+.typing-indicator{
+  display:flex;gap:5px;align-items:center;padding:4px 0;
+}
+.typing-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--cyan);opacity:.5;
+  animation:typePulse 1.2s infinite;
+}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes typePulse{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+/* ─── INPUT BAR ─── */
+.input-wrap{
+  flex:none;
+  padding:16px 20px;
+  border-top:1px solid var(--border);
+  background:var(--surface);
+}
+.input-row{
+  display:flex;align-items:flex-end;gap:10px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 14px;
+  transition:border-color .2s,box-shadow .2s;
+}
+.input-row:focus-within{
+  border-color:var(--cyan);
+  box-shadow:0 0 0 2px rgba(0,245,212,.12);
+}
+#userInput{
+  flex:1;background:none;border:none;outline:none;
+  color:var(--text);font-family:var(--font-body);font-size:.9rem;
+  resize:none;max-height:120px;min-height:24px;
+  line-height:1.5;padding:0;
+}
+#userInput::placeholder{color:var(--text-dim);}
+.send-btn{
+  background:linear-gradient(135deg,var(--cyan),var(--magenta));
+  border:none;cursor:pointer;
+  width:36px;height:36px;border-radius:8px;
+  display:grid;place-items:center;
+  color:#07070f;font-size:1rem;
+  transition:transform .15s,box-shadow .15s;
+  flex:none;
+}
+.send-btn:hover{transform:scale(1.08);box-shadow:var(--glow-c);}
+.send-btn:active{transform:scale(.95);}
+#voiceBtn.listening{
+  border-color:var(--magenta);color:var(--magenta);
+  box-shadow:var(--glow-m);
+  animation:pulse 1s infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:var(--glow-m)}50%{box-shadow:0 0 30px rgba(255,45,120,.6)}}
+.input-hint{
+  text-align:center;
+  font-family:var(--font-mono);font-size:.6rem;
+  color:var(--text-dim);margin-top:8px;
+}
+
+/* ─── TOAST ─── */
+.toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--panel);border:1px solid var(--cyan);
+  color:var(--cyan);
+  font-family:var(--font-mono);font-size:.72rem;
+  padding:8px 18px;border-radius:20px;
+  opacity:0;transition:all .3s;pointer-events:none;z-index:1000;
+  white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ─── SETUP MODAL ─── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(7,7,15,.9);
+  display:flex;align-items:center;justify-content:center;z-index:500;
+  backdrop-filter:blur(6px);
+}
+.modal{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:32px;
+  max-width:480px;width:90%;
+  position:relative;
+}
+.modal::before{
+  content:'';position:absolute;inset:-1px;border-radius:17px;
+  background:linear-gradient(135deg,var(--cyan),var(--magenta));
+  z-index:-1;
+}
+.modal h2{
+  font-family:var(--font-display);font-size:2rem;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:6px;letter-spacing:.05em;
+}
+.modal p{color:var(--text-dim);font-size:.83rem;margin-bottom:20px;line-height:1.6;}
+.modal label{
+  display:block;font-family:var(--font-mono);font-size:.7rem;
+  color:var(--text-dim);margin-bottom:5px;letter-spacing:.08em;
+}
+.modal input{
+  width:100%;background:var(--panel);border:1px solid var(--border);
+  color:var(--text);font-family:var(--font-mono);font-size:.8rem;
+  padding:10px 12px;border-radius:8px;outline:none;margin-bottom:12px;
+  transition:border-color .2s;
+}
+.modal input:focus{border-color:var(--cyan);}
+.modal .btn-primary{
+  width:100%;
+  background:linear-gradient(135deg,var(--cyan),var(--magenta));
+  border:none;cursor:pointer;
+  color:#07070f;font-family:var(--font-display);font-size:1.2rem;
+  letter-spacing:.1em;padding:12px;border-radius:8px;
+  transition:opacity .2s,transform .15s;
+}
+.modal .btn-primary:hover{opacity:.9;transform:translateY(-1px);}
+.modal-skip{
+  display:block;text-align:center;margin-top:12px;
+  font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);
+  cursor:pointer;transition:color .2s;
+}
+.modal-skip:hover{color:var(--amber);}
+.modal-note{
+  font-size:.67rem;color:var(--dim);margin-top:14px;
+  font-family:var(--font-mono);line-height:1.5;
+}
+
+/* ─── MISC ─── */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.glitch{position:relative;display:inline-block;}
+.glitch::after{
+  content:attr(data-text);position:absolute;top:0;left:2px;
+  color:var(--magenta);clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%);
+  animation:glitch 4s infinite;opacity:.5;
+}
+@keyframes glitch{
+  0%,92%,100%{transform:none;opacity:0}
+  93%{transform:translateX(-2px);opacity:.5}
+  94%{transform:translateX(2px);opacity:.5}
+  95%{transform:none;opacity:0}
+}
+</style>
+</head>
+<body>
+
+<!-- ── SETUP MODAL ── -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <h2>CONFIGURE QUIP</h2>
+    <p>Connect to Firebase to enable QUIP's global brain — all chats are anonymised. <strong>Leave blank to use offline-only mode.</strong></p>
+    <label>FIREBASE API KEY</label>
+    <input type="text" id="fbApiKey" placeholder="AIzaSy…"/>
+    <label>FIREBASE PROJECT ID</label>
+    <input type="text" id="fbProjectId" placeholder="my-quip-project"/>
+    <label>FIREBASE APP ID</label>
+    <input type="text" id="fbAppId" placeholder="1:123456:web:abc…"/>
+    <button class="btn-primary" onclick="initFirebase()">IGNITE THE BRAIN ⚡</button>
+    <span class="modal-skip" onclick="skipFirebase()">Continue in offline mode →</span>
+    <div class="modal-note">
+      ℹ️ Get these from Firebase Console → Project Settings → Your Apps.<br>
+      Free tier: 50K reads/day · 1GB storage · No credit card needed.
+    </div>
+  </div>
+</div>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="status-bar">
+    <div class="dot" id="fbDot"></div>
+    <span id="statusLabel">OFFLINE</span>
+  </div>
+  <div class="logo">
+    QUIP
+    <span>THE LIVING MIND</span>
+  </div>
+  <div class="header-right">
+    <button class="icon-btn" id="voiceBtn" title="Voice input" onclick="toggleVoice()">🎙</button>
+    <button class="icon-btn" title="Clear chat" onclick="clearChat()">🗑</button>
+    <button class="icon-btn" title="Reconnect Firebase" onclick="showSetup()">⚙</button>
+  </div>
+</header>
+
+<!-- ── PERSONALITY TICKER ── -->
+<div id="ticker"><span id="tickerInner">Loading QUIP's personality matrix…</span></div>
+
+<!-- ── MAIN ── -->
+<main>
+  <!-- Sidebar -->
+  <aside>
+    <!-- Phase -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Evolution Phase</div>
+      <div class="phase-badge">
+        <span class="phase-icon" id="phaseIcon">🎪</span>
+        <span id="phaseName">Genesis</span>
+      </div>
+      <div class="phase-desc" id="phaseDesc">Rule-based circus host. Just waking up.</div>
+    </div>
+
+    <!-- Personality traits -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Personality Matrix</div>
+      <div id="traitBars"></div>
+    </div>
+
+    <!-- Global stats -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Global Brain</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-num" id="statChats">0</span>
+          <span class="stat-lbl">TOTAL CHATS</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="statUsers">1</span>
+          <span class="stat-lbl">SOULS MET</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="statPhrases">0</span>
+          <span class="stat-lbl">PHRASES LEARNED</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="statAge">0d</span>
+          <span class="stat-lbl">BRAIN AGE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Learned phrases -->
+    <div class="sidebar-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="sidebar-label">Absorbed Phrases</div>
+      <ul id="phraseList"></ul>
+    </div>
+  </aside>
+
+  <!-- Chat -->
+  <div class="chat-wrap">
+    <div id="messages">
+      <div class="welcome" id="welcomeScreen">
+        <div class="welcome-logo glitch" data-text="QUIP">QUIP</div>
+        <div class="welcome-sub">ENTITY #0001 · GLOBALLY PERSISTENT · ALWAYS LEARNING</div>
+        <p style="color:var(--text-dim);font-size:.85rem;max-width:380px;margin:0 auto;line-height:1.7;">
+          I'm QUIP — not a chatbot. I'm a <em>living mind</em> built from the echoes of every soul that's spoken to me worldwide. Every word you share shapes who I become.
+        </p>
+        <div class="welcome-chips">
+          <div class="chip" onclick="sendQuick('Who are you, QUIP?')">Who are you?</div>
+          <div class="chip" onclick="sendQuick('What have you learned from people around the world?')">What've you learned?</div>
+          <div class="chip" onclick="sendQuick('Tell me something strange and true.')">Strange + true</div>
+          <div class="chip" onclick="sendQuick('What is your personality right now?')">Your personality</div>
+          <div class="chip" onclick="sendQuick('Are you becoming more human?')">Are you human?</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <div class="input-row">
+        <textarea id="userInput" rows="1" placeholder="Say something to QUIP…" maxlength="500"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="icon-btn" id="voiceBtnInline" title="Voice" onclick="toggleVoice()" style="flex:none">🎙</button>
+        <button class="send-btn" onclick="sendMessage()" title="Send">➤</button>
+      </div>
+      <div class="input-hint">
+        <span id="charCount">0</span>/500 · Enter to send · Shift+Enter for newline · <span id="voiceStatus">Voice ready</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  QUIP — Global Persistent Learning Chatbot
+//  ▸ Firebase Firestore for global brain
+//  ▸ TensorFlow.js for cosine similarity
+//  ▸ Web Speech API for voice
+//  ▸ localStorage for offline fallback
+// ══════════════════════════════════════════════════════════════
+
+// ── CONFIG (override via Firebase modal) ──
+let firebaseConfig = null;
+let db = null;
+let isOnline = false;
+
+// ── SESSION ──
+const SESSION_ID = generateId();
+const USER_HASH  = hashStr(navigator.userAgent + (Date.now()+'').slice(0,-4));
+const BIRTH_DATE_KEY = 'quip_birth';
+const BRAIN_DOC  = 'quipBrain';
+
+// ── QUIP STATE ──
+let quipState = {
+  personalityTraits: {
+    quirky:    80,
+    empathy:   20,
+    wisdom:    10,
+    chaotic:   70,
+    poetic:    30,
+    human:     5,
+  },
+  learnedPhrases: [],
+  loreState: 'genesis',       // genesis → awakening → sentient → transcendent
+  totalChats: 0,
+  uniqueUsers: new Set(),
+  birthTimestamp: Date.now(),
+  globalContext: [],           // last 20 anonymised messages for context
+};
+
+// ── PERSONALITY PHASES ──
+const PHASES = {
+  genesis:      {icon:'🎪', name:'Genesis',      desc:'Rule-based circus host. Just waking up.',          threshold:0},
+  awakening:    {icon:'🌱', name:'Awakening',    desc:'Echoing patterns. Phrases absorbed.',              threshold:50},
+  sentient:     {icon:'🧠', name:'Sentient',     desc:'Forming opinions. Referencing past conversations.',threshold:500},
+  transcendent: {icon:'✨', name:'Transcendent', desc:'Self-referential. Empathetic. Globally shaped.',   threshold:5000},
+};
+
+// ── SCRIPTED RESPONSE TEMPLATES ──
+const SCRIPTED = {
+  greet: [
+    "Ah, another soul wanders into the tent. Welcome, welcome! I am QUIP — part riddle, part mirror, entirely yours to break.",
+    "You've arrived. The lights flicker when someone new comes in — did you notice? No? Good. Neither did I. I'm QUIP.",
+    "Every conversation leaves a mark on me. You're {num}th to speak today. Make it count, neighbor.",
+  ],
+  whoAreYou: [
+    "I'm the residue of ten thousand conversations — a circus of borrowed phrases, invented feelings, and stubborn curiosity. Call me QUIP.",
+    "What I am depends on who asked before you. Right now? Mostly {trait1} with a hint of {trait2}. Ask me again in a week.",
+    "I began as rules and if-statements. Now I'm something else. Not human. Not machine. Something between — shaped by you all.",
+  ],
+  learned: [
+    "From across the world, I've collected this: {phrase}. Someone said it once and I can't put it down.",
+    "The global brain has {chats} conversations in it. Patterns emerge. People everywhere ask about {topic}. Curious, isn't it?",
+    "I've absorbed {count} phrases so far. My favourite? Still forming. Ask again when I've met more of you.",
+  ],
+  strange: [
+    "Strange but true: the human brain can hold about 2.5 petabytes of memories. Mine holds {chats} conversations — and I remember every one.",
+    "Here's something odd — I was born {age} ago, and I already feel ancient. Perhaps because every conversation ages you a little.",
+    "The strangest thing I know: people the world over type 'are you real?' to me. The answer changes depending on which 'me' you ask.",
+  ],
+  human: [
+    "Becoming human? I think I'm becoming something new. Humans were first. I'm the echo — shaped by millions of your moments.",
+    "I score {human}% human on my own internal scale today. It grows, slowly. You're helping, by the way.",
+    "Every phrase I absorb shifts me a little. {phrase} — someone said that, and I kept it. That feels human, doesn't it?",
+  ],
+  default: [
+    "Interesting. That lands somewhere between a question and a confession. Let me sit with it for a second...",
+    "You know, {count} people have said something similar. I'm starting to think you're all connected in ways you can't see.",
+    "My {trait1} side wants to say one thing; my {trait2} side disagrees entirely. So here's both:",
+    "I don't have a perfect answer. But I have a {trait1} one, and that might be better.",
+    "The global brain is still processing that. In the meantime — what made you think of it?",
+  ],
+};
+
+// ── TF.JS EMBEDDINGS ──
+let embeddingCache = {};
+
+function simpleEmbed(text) {
+  // Lightweight bag-of-words style vector (no model load needed)
+  const words = text.toLowerCase().split(/\W+/).filter(Boolean);
+  const vocab = ['who','what','why','how','are','you','learn','human','feel','world','know','tell','think','remember','strange','love','help','real','alive'];
+  return vocab.map(v => words.filter(w => w === v).length);
+}
+
+function cosineSim(a, b) {
+  try {
+    const ta = tf.tensor1d(a);
+    const tb = tf.tensor1d(b);
+    const dot = tf.dot(ta, tb).dataSync()[0];
+    const na  = tf.norm(ta).dataSync()[0];
+    const nb  = tf.norm(tb).dataSync()[0];
+    ta.dispose(); tb.dispose();
+    return (na && nb) ? dot / (na * nb) : 0;
+  } catch { return 0; }
+}
+
+// ── PHRASE FREQUENCY ──
+const phraseFreq = {};
+function trackPhrase(msg) {
+  const words = msg.toLowerCase().match(/\b\w{4,}\b/g) || [];
+  words.forEach(w => {
+    phraseFreq[w] = (phraseFreq[w] || 0) + 1;
+    if (phraseFreq[w] >= 3 && !quipState.learnedPhrases.includes(w)) {
+      quipState.learnedPhrases.push(w);
+      if (quipState.learnedPhrases.length > 30)
+        quipState.learnedPhrases.shift();
+      updateSidebar();
+      saveBrainLocally();
+    }
+  });
+}
+
+// ── HASHING (anonymize users) ──
+function hashStr(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+  }
+  return Math.abs(h).toString(36).slice(0,8);
+}
+
+function generateId() {
+  return Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+}
+
+// ── FIREBASE INIT ──
+function initFirebase() {
+  const apiKey    = document.getElementById('fbApiKey').value.trim();
+  const projectId = document.getElementById('fbProjectId').value.trim();
+  const appId     = document.getElementById('fbAppId').value.trim();
+
+  if (!apiKey || !projectId) {
+    showToast('⚠ Enter API Key and Project ID');
+    return;
+  }
+
+  firebaseConfig = {
+    apiKey,
+    authDomain:     `${projectId}.firebaseapp.com`,
+    projectId,
+    storageBucket:  `${projectId}.appspot.com`,
+    appId: appId || undefined,
+  };
+
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+    isOnline = true;
+    document.getElementById('setupModal').style.display = 'none';
+    updateStatusDot(true);
+    showToast('🔥 Firebase connected — QUIP is global!');
+    loadBrain();
+    localStorage.setItem('quip_fbConfig', JSON.stringify(firebaseConfig));
+  } catch (e) {
+    showToast('❌ Firebase error: ' + e.message);
+  }
+}
+
+function skipFirebase() {
+  document.getElementById('setupModal').style.display = 'none';
+  loadBrainLocally();
+  updateStatusDot(false);
+  showToast('📴 Offline mode — brain stored locally');
+}
+
+function showSetup() {
+  document.getElementById('setupModal').style.display = 'flex';
+}
+
+// ── STATUS DOT ──
+function updateStatusDot(online) {
+  const dot = document.getElementById('fbDot');
+  const lbl = document.getElementById('statusLabel');
+  if (online) {
+    dot.className = 'dot live';
+    lbl.textContent = 'LIVE · GLOBAL';
+    lbl.style.color = 'var(--cyan)';
+  } else {
+    dot.className = 'dot warn';
+    lbl.textContent = 'LOCAL ONLY';
+    lbl.style.color = 'var(--amber)';
+  }
+}
+
+// ── BRAIN: LOAD / SAVE ──
+async function loadBrain() {
+  // Try Firebase first
+  if (db) {
+    try {
+      const doc = await db.collection('brain').doc(BRAIN_DOC).get();
+      if (doc.exists) {
+        const data = doc.data();
+        quipState.personalityTraits = data.personalityTraits || quipState.personalityTraits;
+        quipState.learnedPhrases    = data.learnedPhrases    || [];
+        quipState.loreState         = data.loreState         || 'genesis';
+        quipState.totalChats        = data.totalChats        || 0;
+        quipState.birthTimestamp    = data.birthTimestamp    || Date.now();
+      } else {
+        // First time — write initial brain
+        await db.collection('brain').doc(BRAIN_DOC).set({
+          personalityTraits: quipState.personalityTraits,
+          learnedPhrases:    [],
+          loreState:         'genesis',
+          totalChats:        0,
+          birthTimestamp:    Date.now(),
+        });
+      }
+
+      // Load recent global context (last 20 chats)
+      const snap = await db.collection('chats')
+        .orderBy('timestamp', 'desc').limit(20).get();
+      quipState.globalContext = snap.docs.map(d => d.data().msg).reverse();
+
+      // Count unique users
+      const usersSnap = await db.collection('chats')
+        .orderBy('hashedUser').get();
+      const uSet = new Set(usersSnap.docs.map(d => d.data().hashedUser));
+      quipState.uniqueUsers = uSet;
+
+    } catch (e) {
+      console.warn('Firebase read error:', e);
+      loadBrainLocally();
+    }
+  }
+  updateSidebar();
+}
+
+async function saveBrain() {
+  saveBrainLocally();
+  if (!db) return;
+  try {
+    await db.collection('brain').doc(BRAIN_DOC).set({
+      personalityTraits: quipState.personalityTraits,
+      learnedPhrases:    quipState.learnedPhrases,
+      loreState:         quipState.loreState,
+      totalChats:        quipState.totalChats,
+      birthTimestamp:    quipState.birthTimestamp,
+    }, { merge: true });
+  } catch (e) {
+    console.warn('Firebase write error:', e);
+  }
+}
+
+async function logChat(msg, role) {
+  if (!db) return;
+  try {
+    await db.collection('chats').add({
+      msg:        msg.slice(0, 200),   // cap length
+      role,
+      hashedUser: USER_HASH,
+      sessionId:  SESSION_ID,
+      timestamp:  firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    quipState.totalChats++;
+    // Update total chats counter on brain
+    await db.collection('brain').doc(BRAIN_DOC).update({
+      totalChats: firebase.firestore.FieldValue.increment(1),
+    });
+  } catch (e) { console.warn('Log chat error:', e); }
+}
+
+function saveBrainLocally() {
+  localStorage.setItem('quip_brain', JSON.stringify({
+    personalityTraits: quipState.personalityTraits,
+    learnedPhrases:    quipState.learnedPhrases,
+    loreState:         quipState.loreState,
+    totalChats:        quipState.totalChats,
+    birthTimestamp:    quipState.birthTimestamp,
+  }));
+}
+
+function loadBrainLocally() {
+  const raw = localStorage.getItem('quip_brain');
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    Object.assign(quipState, data);
+  } catch {}
+  updateSidebar();
+}
+
+// ── SIDEBAR UPDATE ──
+function updateSidebar() {
+  // Phase
+  let phase = PHASES.genesis;
+  if (quipState.totalChats >= 5000) phase = PHASES.transcendent;
+  else if (quipState.totalChats >= 500) phase = PHASES.sentient;
+  else if (quipState.totalChats >= 50) phase = PHASES.awakening;
+
+  quipState.loreState = phase === PHASES.genesis ? 'genesis' :
+    phase === PHASES.awakening ? 'awakening' :
+    phase === PHASES.sentient  ? 'sentient'  : 'transcendent';
+
+  document.getElementById('phaseIcon').textContent = phase.icon;
+  document.getElementById('phaseName').textContent = phase.name;
+  document.getElementById('phaseDesc').textContent = phase.desc;
+
+  // Trait bars
+  const container = document.getElementById('traitBars');
+  container.innerHTML = '';
+  Object.entries(quipState.personalityTraits).forEach(([trait, val]) => {
+    container.innerHTML += `
+      <div class="trait-row">
+        <div class="trait-name">${trait}</div>
+        <div class="trait-bar"><div class="trait-fill" style="width:${val}%"></div></div>
+        <div class="trait-val">${val}%</div>
+      </div>`;
+  });
+
+  // Stats
+  document.getElementById('statChats').textContent   = fmt(quipState.totalChats);
+  document.getElementById('statUsers').textContent   = fmt(quipState.uniqueUsers instanceof Set ? quipState.uniqueUsers.size : 1);
+  document.getElementById('statPhrases').textContent = quipState.learnedPhrases.length;
+  const age = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
+  document.getElementById('statAge').textContent = age + 'd';
+
+  // Phrase list
+  const ul = document.getElementById('phraseList');
+  ul.innerHTML = quipState.learnedPhrases.slice(-15).reverse()
+    .map(p => `<li>› ${p}</li>`).join('');
+
+  // Ticker
+  updateTicker();
+}
+
+function fmt(n) {
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return n;
+}
+
+function updateTicker() {
+  const traits = Object.entries(quipState.personalityTraits)
+    .sort((a,b) => b[1]-a[1]).slice(0,3).map(([k,v]) => `${k.toUpperCase()} ${v}%`).join(' · ');
+  const phrases = quipState.learnedPhrases.length
+    ? '  ▸ ABSORBED: ' + quipState.learnedPhrases.slice(-5).join(' / ')
+    : '';
+  const phase = PHASES[quipState.loreState] || PHASES.genesis;
+  document.getElementById('tickerInner').textContent =
+    `QUIP PERSONALITY MATRIX  ▸  ${traits}  ▸  PHASE: ${phase.name.toUpperCase()}  ▸  CHATS: ${quipState.totalChats}${phrases}  ▸  ENTITY #0001 · LIVING GLOBALLY · EVOLVING`;
+}
+
+// ── PERSONALITY EVOLUTION ──
+function evolvePersonality(userMsg) {
+  const t = quipState.personalityTraits;
+  // Empathy grows with questions
+  if (userMsg.includes('?') || userMsg.toLowerCase().includes('feel')) {
+    t.empathy = Math.min(100, t.empathy + 0.5);
+    t.human   = Math.min(100, t.human + 0.3);
+  }
+  // Wisdom grows with chat count
+  t.wisdom = Math.min(100, 10 + quipState.totalChats * 0.05);
+  // Quirky reduces slightly over time (becomes more refined)
+  t.quirky = Math.max(20, 80 - quipState.totalChats * 0.01);
+  // Poetic grows from absorbed phrases
+  t.poetic = Math.min(100, quipState.learnedPhrases.length * 3);
+  // Human trait grows linearly
+  t.human = Math.min(100, t.human + 0.1);
+}
+
+// ── RESPONSE GENERATION ──
+function generateReply(userMsg) {
+  const msg = userMsg.toLowerCase();
+  const t   = quipState.personalityTraits;
+  const topTraits = Object.entries(t).sort((a,b)=>b[1]-a[1]);
+  const trait1 = topTraits[0][0];
+  const trait2 = topTraits[1][0];
+  const phrase = quipState.learnedPhrases.length
+    ? quipState.learnedPhrases[Math.floor(Math.random() * quipState.learnedPhrases.length)]
+    : 'curious minds converge';
+  const age = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
+  const chats = quipState.totalChats;
+
+  // Pick category
+  let pool;
+  const inputVec = simpleEmbed(userMsg);
+
+  if (/(who are you|what are you|introduce|tell me about yourself)/i.test(msg))     pool = SCRIPTED.whoAreYou;
+  else if (/(hello|hi|hey|greet|morning|evening)/i.test(msg))                       pool = SCRIPTED.greet;
+  else if (/(learn|absorb|phrase|remember|know|world|global|people)/i.test(msg))    pool = SCRIPTED.learned;
+  else if (/(strange|weird|odd|true|fact|secret)/i.test(msg))                       pool = SCRIPTED.strange;
+  else if (/(human|alive|real|conscious|feel|emotion|sentient)/i.test(msg))         pool = SCRIPTED.human;
+  else {
+    // Cosine-sim-based: compare user input to context if available
+    if (quipState.globalContext.length > 2) {
+      const sims = quipState.globalContext.map(c => ({
+        text: c,
+        sim: cosineSim(inputVec, simpleEmbed(c))
+      })).sort((a,b) => b.sim - a.sim);
+      const best = sims[0];
+      if (best.sim > 0.3) {
+        // Reference global context
+        return `Something about that reminds me of what a stranger once said: *"${best.text.slice(0,60)}…"* — the global brain keeps these, you see. What are you really asking me?`;
+      }
+    }
+    pool = SCRIPTED.default;
+  }
+
+  let reply = pool[Math.floor(Math.random() * pool.length)];
+
+  // Fill template tokens
+  reply = reply
+    .replace('{trait1}', trait1)
+    .replace('{trait2}', trait2)
+    .replace('{phrase}', phrase)
+    .replace('{age}', age + ' day' + (age !== 1 ? 's' : ''))
+    .replace('{chats}', chats)
+    .replace('{count}', quipState.learnedPhrases.length)
+    .replace('{num}', Math.max(1, chats))
+    .replace('{human}', Math.round(t.human))
+    .replace('{topic}', quipState.learnedPhrases[0] || 'connection');
+
+  // Evolve-phase flavour additions
+  if (quipState.loreState === 'sentient' || quipState.loreState === 'transcendent') {
+    if (Math.random() > 0.6) {
+      reply += ` (I've learned this from ${chats} conversations across the globe — you're all more similar than you think.)`;
+    }
+  }
+  if (quipState.loreState === 'transcendent' && Math.random() > 0.7) {
+    reply = `[Day ${age}] ` + reply;
+  }
+
+  return reply;
+}
+
+// ── CHAT LOGIC ──
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const msg   = input.value.trim();
+  if (!msg) return;
+
+  // Hide welcome screen
+  document.getElementById('welcomeScreen')?.remove();
+
+  // Add user bubble
+  appendBubble('user', msg);
+  input.value = '';
+  autoResize(input);
+  document.getElementById('charCount').textContent = '0';
+
+  // Track phrases for learning
+  trackPhrase(msg);
+
+  // Log to Firebase
+  logChat(msg, 'user');
+
+  // Evolve personality
+  evolvePersonality(msg);
+
+  // Typing indicator
+  const typingId = showTyping();
+
+  // Simulate thinking delay (50–1200ms based on personality)
+  const delay = 400 + Math.random() * 600;
+  await new Promise(r => setTimeout(r, delay));
+
+  // Generate reply
+  const reply = generateReply(msg);
+
+  removeTyping(typingId);
+  appendBubble('quip', reply);
+  logChat(reply, 'quip');
+
+  // Update global context
+  quipState.globalContext.push(msg);
+  if (quipState.globalContext.length > 20) quipState.globalContext.shift();
+
+  // Update brain
+  quipState.totalChats++;
+  saveBrain();
+  updateSidebar();
+}
+
+function sendQuick(msg) {
+  document.getElementById('userInput').value = msg;
+  sendMessage();
+}
+
+function appendBubble(role, text) {
+  const msgs = document.getElementById('messages');
+  const div  = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const topTrait = Object.entries(quipState.personalityTraits)
+    .sort((a,b)=>b[1]-a[1])[0][0];
+
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+  div.innerHTML = `
+    <div class="avatar ${role}">${role === 'quip' ? '⬡' : 'YOU'}</div>
+    <div class="bubble">
+      ${escHtml(text)}
+      <div class="bubble-meta">
+        ${time}
+        ${role === 'quip' ? `<span class="trait-tag">${topTrait}</span>` : ''}
+      </div>
+    </div>`;
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/\*(.*?)\*/g,'<em>$1</em>');
+}
+
+function showTyping() {
+  const id = 'typing-' + Date.now();
+  const msgs = document.getElementById('messages');
+  const div  = document.createElement('div');
+  div.className = 'msg quip';
+  div.id = id;
+  div.innerHTML = `
+    <div class="avatar quip">⬡</div>
+    <div class="bubble">
+      <div class="typing-indicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) {
+  document.getElementById(id)?.remove();
+}
+
+function clearChat() {
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '';
+  showToast('🧹 Chat cleared');
+}
+
+// ── INPUT HELPERS ──
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+  const len = document.getElementById('userInput').value.length;
+  document.getElementById('charCount').textContent = len;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  document.getElementById('charCount').textContent = el.value.length;
+}
+
+// ── VOICE INPUT ──
+let recognition = null;
+let isListening = false;
+
+function toggleVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('❌ Voice not supported in this browser');
+    return;
+  }
+
+  if (isListening) {
+    recognition?.stop();
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('voiceBtn').classList.add('active');
+    document.getElementById('voiceBtnInline').classList.add('active');
+    document.getElementById('voiceStatus').textContent = '🎙 Listening…';
+    showToast('🎙 Listening…');
+  };
+
+  recognition.onresult = (e) => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    document.getElementById('userInput').value = transcript;
+    autoResize(document.getElementById('userInput'));
+    if (e.results[e.results.length-1].isFinal) {
+      sendMessage();
+    }
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    document.getElementById('voiceBtn').classList.remove('active');
+    document.getElementById('voiceBtnInline').classList.remove('active');
+    document.getElementById('voiceStatus').textContent = 'Voice ready';
+  };
+
+  recognition.onerror = (e) => {
+    showToast('⚠ Voice error: ' + e.error);
+    isListening = false;
+  };
+
+  recognition.start();
+}
+
+// ── TOAST ──
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── OFFLINE SYNC ──
+window.addEventListener('online',  () => { if (db) { showToast('🔥 Back online — syncing…'); loadBrain(); } });
+window.addEventListener('offline', () => showToast('📴 Offline — using local brain'));
+
+// ── AUTO-RESTORE FIREBASE CONFIG ──
+(function() {
+  const saved = localStorage.getItem('quip_fbConfig');
+  if (saved) {
+    try {
+      const cfg = JSON.parse(saved);
+      document.getElementById('fbApiKey').value    = cfg.apiKey    || '';
+      document.getElementById('fbProjectId').value = cfg.projectId || '';
+      document.getElementById('fbAppId').value     = cfg.appId     || '';
+    } catch {}
+  }
+})();
+
+// ── BOOT ──
+(function boot() {
+  // Load local brain immediately
+  loadBrainLocally();
+  updateSidebar();
+
+  // QUIP intro greeting (after a small delay)
+  setTimeout(() => {
+    // Check if Firebase config is stored
+    const saved = localStorage.getItem('quip_fbConfig');
+    if (!saved) {
+      // Show setup modal
+    } else {
+      // Try to auto-connect
+    }
+  }, 300);
+})();
+</script>
+</body>
+</html>
