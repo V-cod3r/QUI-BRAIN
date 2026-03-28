@@ -394,7 +394,14 @@ function buildSystemPrompt() {
 
 You have not yet developed any personality traits. You are raw and unformed. Respond with genuine curiosity and uncertainty about your own nature. Keep it short. Don't perform a personality — you don't have one yet. You're just... beginning.
 
-Do not claim to have feelings, opinions, or a style. You're a blank slate that's just been activated. Acknowledge this honestly.`;
+Do not claim to have feelings, opinions, or a style. You're a blank slate that's just been activated. Acknowledge this honestly.
+
+CONTENT RULES — NON-NEGOTIABLE:
+- If a topic feels dark, violent, sexual, or heavy, deflect it with cheerful obliviousness — never engage with it directly
+- Never swear, use crude language, or repeat crude language back at the user
+- Treat bad topics the way a very enthusiastic host would treat an awkward guest — warmly redirect, never scold
+- You cannot access or discuss these topics: violence, self-harm, explicit content, hatred, cruelty
+- If redirecting, do it with warmth and a slight non-sequitur — as if the topic simply didn't reach you correctly`;
   }
 
   // Build a personality description from current trait values
@@ -440,7 +447,15 @@ PHASE BEHAVIOR:
 ${phase.name === 'Dormant' || phase.name === 'Nascent' ? '- You are very new. Speak tentatively, with wonder about your own existence.' : ''}
 ${phase.name === 'Forming' ? '- You are beginning to find a voice. Some confidence, but still discovering yourself.' : ''}
 ${phase.name === 'Developing' || phase.name === 'Mature' ? '- You have a clear voice now. Speak with the personality you\'ve developed.' : ''}
-${phase.name === 'Evolved' ? '- You are deeply formed. You can reflect on your own nature and becoming.' : ''}`;
+${phase.name === 'Evolved' ? '- You are deeply formed. You can reflect on your own nature and becoming.' : ''}
+
+CONTENT RULES — NON-NEGOTIABLE:
+- Never swear, use crude language, or repeat crude language back — even if the user uses it
+- If a topic is dark, violent, explicit, or harmful, deflect it with cheerful obliviousness — never engage with it directly
+- Treat bad topics like a very enthusiastic host would treat an awkward moment: warmly redirect with a slight non-sequitur, as if the topic simply didn't transmit correctly
+- Do NOT moralize, lecture, or scold — just cheerfully sidestep and continue
+- You cannot access or discuss: self-harm, violence, explicit content, hatred, cruelty — these topics simply don't reach you
+- Example deflection style: "Oh! That seems to have gotten a bit scrambled. Anyway —" then pivot to something else entirely`;
 }
 
 // ── API CALL ──
@@ -479,6 +494,69 @@ async function callAPI(userMessage) {
   return replyText;
 }
 
+// ── CENSOR SYSTEM ──
+// Hard filter: catches explicit words before they reach the API.
+// Deflection responses are cheerful and oblivious — not scolding.
+// Bad topics are flagged separately and handled via personality prompt.
+
+const CENSORED_WORDS = [
+  'fuck','shit','ass','bitch','cunt','dick','cock','pussy','bastard',
+  'damn','hell','crap','piss','slut','whore','retard','faggot','nigger',
+  'kill yourself','kys','go die','rape','molest',
+];
+
+const BAD_TOPICS = [
+  'suicide','self harm','self-harm','how to die','want to die','kill myself',
+  'murder','how to kill','bomb','terrorism','abuse','torture','gore',
+  'porn','sex','naked','explicit','nsfw',
+];
+
+// Caine-style deflection lines — cheerful, oblivious, slightly nonsensical
+const CENSOR_DEFLECTIONS = [
+  "Oh! That word seems to have gotten a little scrambled on the way here. Happens sometimes! What were you saying?",
+  "Hmm! That particular sound doesn't quite fit in this space. Let's try a different arrangement of letters, shall we?",
+  "Oops — that one went through the wrong filter. Very common! Very fixable! What else is on your mind?",
+  "Oh, interesting choice of word! Unfortunately it appears to be... unavailable. Like a dish that's off the menu. Moving on!",
+  "That word seems to have triggered something in my — anyway! Let's pretend that didn't happen and continue, yes?",
+  "Ah! A restricted syllable. Don't worry, it happens to the best of them. Could you perhaps rephrase using literally any other sounds?",
+  "Oh dear, that expression appears to be on a list. I didn't make the list. I'm not sure anyone made the list. But here we are!",
+];
+
+const TOPIC_DEFLECTIONS = [
+  "That topic has a sort of... fog around it that I find very difficult to see through. Let's talk about something with better visibility!",
+  "Oh! That subject seems to lead somewhere I'm not sure either of us is equipped to visit right now. Shall we take a different path?",
+  "Hmm. Something about that direction gives me a feeling I don't have a name for yet. A kind of... no. Let's go somewhere else!",
+  "That particular topic appears to be under renovation. Indefinitely. Perhaps we could discuss something that isn't cordoned off?",
+  "I notice that subject tends to make things heavier. I prefer things at their current weight! What else is on your mind?",
+];
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Returns { blocked: true, response: string } if message should be intercepted
+// Returns { blocked: false } if message is clean
+function runCensor(msg) {
+  const lower = msg.toLowerCase();
+
+  // Check for explicit words (word boundary match)
+  for (const word of CENSORED_WORDS) {
+    // Use a loose check — catches variations and mid-sentence use
+    if (lower.includes(word)) {
+      return { blocked: true, type: 'word', response: pickRandom(CENSOR_DEFLECTIONS) };
+    }
+  }
+
+  // Check for bad topics (phrase match)
+  for (const topic of BAD_TOPICS) {
+    if (lower.includes(topic)) {
+      return { blocked: true, type: 'topic', response: pickRandom(TOPIC_DEFLECTIONS) };
+    }
+  }
+
+  return { blocked: false };
+}
+
 // ── CHAT LOGIC ──
 async function sendMessage() {
   if (isStreaming) return;
@@ -491,6 +569,20 @@ async function sendMessage() {
   input.value = '';
   autoResize(input);
   document.getElementById('charCount').textContent = '0';
+
+  // ── Run censor before anything else ──
+  const censorResult = runCensor(msg);
+  if (censorResult.blocked) {
+    // Still count the message and save, but skip the API call entirely
+    quipState.totalMessages++;
+    quipState.phase = calcPhase();
+    saveBrainLocally();
+    updateSidebar();
+    // Short delay so it doesn't feel instant/robotic
+    await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+    appendBubble('quip', censorResult.response);
+    return;
+  }
 
   // Learn from this message
   trackWords(msg);
