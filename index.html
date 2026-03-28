@@ -3,13 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="theme-color" content="#0a0a14"/>
-<link rel="manifest" href="data:application/json,{%22name%22:%22QUIP%22,%22short_name%22:%22QUIP%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a14%22,%22theme_color%22:%22%2300f5d4%22}"/>
 <title>QUIP — The Learning Mind</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -25,32 +21,24 @@ html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:15px;display:flex;flex-direction:column;height:100dvh}
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px)}
 
-/* HEADER */
 header{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface);position:relative;overflow:hidden}
 header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),var(--magenta),transparent);animation:scanH 3s linear infinite}
 @keyframes scanH{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 .logo{font-family:var(--font-display);font-size:2.4rem;letter-spacing:.12em;background:linear-gradient(135deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 12px rgba(0,245,212,.6));justify-self:center;line-height:1}
 .logo span{font-size:.9rem;letter-spacing:.3em;display:block;text-align:center;background:linear-gradient(90deg,var(--amber),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-family:var(--font-mono)}
 .status-bar{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--dim);transition:background .3s,box-shadow .3s}
-.dot.live{background:var(--cyan);box-shadow:var(--glow-c)}
-.dot.warn{background:var(--amber);box-shadow:var(--glow-a)}
-#statusLabel{transition:color .3s}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:var(--glow-c)}
 .header-right{display:flex;align-items:center;gap:10px;justify-content:flex-end}
 .icon-btn{background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;width:34px;height:34px;border-radius:6px;display:grid;place-items:center;font-size:1rem;transition:all .2s}
 .icon-btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-c)}
-.icon-btn.active{border-color:var(--magenta);color:var(--magenta);box-shadow:var(--glow-m)}
 
-/* TICKER */
 #ticker{flex:none;background:var(--panel);border-bottom:1px solid var(--border);padding:5px 0;overflow:hidden;font-family:var(--font-mono);font-size:.68rem;color:var(--amber);white-space:nowrap}
 #tickerInner{display:inline-block;animation:tick 30s linear infinite}
 @keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
 
-/* MAIN LAYOUT */
 main{flex:1;display:grid;grid-template-columns:220px 1fr;min-height:0}
 @media(max-width:640px){main{grid-template-columns:1fr}aside{display:none}}
 
-/* SIDEBAR */
 aside{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .sidebar-section{padding:14px 16px;border-bottom:1px solid var(--border)}
 .sidebar-label{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.15em;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px}
@@ -68,11 +56,9 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
 #phraseList{list-style:none;max-height:120px;overflow-y:auto}
 #phraseList li{font-family:var(--font-mono);font-size:.65rem;color:var(--text-dim);padding:4px 6px;border-left:2px solid var(--magenta);margin-bottom:4px;background:var(--panel);border-radius:0 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* CHAT PANEL */
 .chat-wrap{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 #messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
 #messages::-webkit-scrollbar{width:4px}
-#messages::-webkit-scrollbar-track{background:transparent}
 #messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .welcome{text-align:center;padding:40px 20px;animation:fadeIn .6s ease}
 .welcome-logo{font-family:var(--font-display);font-size:4rem;background:linear-gradient(135deg,var(--cyan),var(--magenta),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 30px rgba(0,245,212,.5));line-height:1;margin-bottom:8px}
@@ -81,14 +67,14 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
 .chip{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:7px 14px;font-size:.78rem;color:var(--text-dim);cursor:pointer;transition:all .2s}
 .chip:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-1px)}
 
-/* BUBBLES */
 .msg{display:flex;gap:12px;align-items:flex-start;animation:slideUp .3s ease}
 .msg.user{flex-direction:row-reverse}
 @keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .avatar{width:36px;height:36px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:1rem;font-family:var(--font-mono);border:1px solid var(--border)}
 .avatar.quip{background:linear-gradient(135deg,#0d1a24,#0d241f);border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-c);font-size:1.2rem}
 .avatar.user{background:var(--panel);border-color:var(--magenta);color:var(--magenta);font-size:.75rem;letter-spacing:.05em}
-.bubble{max-width:72%;border-radius:12px;padding:12px 16px;line-height:1.6;position:relative;font-size:.9rem}
+.bubble{max-width:72%;border-radius:12px;padding:12px 16px;line-height:1.6;font-size:.9rem}
 .msg.quip .bubble{background:var(--panel);border:1px solid var(--border);border-top-left-radius:2px;color:var(--text)}
 .msg.user .bubble{background:linear-gradient(135deg,rgba(255,45,120,.12),rgba(0,245,212,.08));border:1px solid rgba(255,45,120,.3);border-top-right-radius:2px;color:var(--text)}
 .bubble-meta{font-family:var(--font-mono);font-size:.58rem;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px}
@@ -99,49 +85,34 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
 .typing-dot:nth-child(3){animation-delay:.4s}
 @keyframes typePulse{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
 
-/* INPUT */
 .input-wrap{flex:none;padding:16px 20px;border-top:1px solid var(--border);background:var(--surface)}
 .input-row{display:flex;align-items:flex-end;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px;transition:border-color .2s,box-shadow .2s}
 .input-row:focus-within{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,245,212,.12)}
 #userInput{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--font-body);font-size:.9rem;resize:none;max-height:120px;min-height:24px;line-height:1.5;padding:0}
 #userInput::placeholder{color:var(--text-dim)}
 .send-btn{background:linear-gradient(135deg,var(--cyan),var(--magenta));border:none;cursor:pointer;width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:#07070f;font-size:1rem;transition:transform .15s,box-shadow .15s;flex:none}
-.send-btn:hover{transform:scale(1.08);box-shadow:var(--glow-c)}
-.send-btn:active{transform:scale(.95)}
+.send-btn:hover{transform:scale(1.08)}
 .send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-#voiceBtn.listening{border-color:var(--magenta);color:var(--magenta);box-shadow:var(--glow-m);animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{box-shadow:var(--glow-m)}50%{box-shadow:0 0 30px rgba(255,45,120,.6)}}
 .input-hint{text-align:center;font-family:var(--font-mono);font-size:.6rem;color:var(--text-dim);margin-top:8px}
 
-/* TOAST */
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel);border:1px solid var(--cyan);color:var(--cyan);font-family:var(--font-mono);font-size:.72rem;padding:8px 18px;border-radius:20px;opacity:0;transition:all .3s;pointer-events:none;z-index:1000;white-space:nowrap}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel);border:1px solid var(--cyan);color:var(--cyan);font-family:var(--font-mono);font-size:.72rem;padding:8px 18px;border-radius:20px;opacity:0;transition:all .3s;pointer-events:none;z-index:1000}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .glitch{position:relative;display:inline-block}
 .glitch::after{content:attr(data-text);position:absolute;top:0;left:2px;color:var(--magenta);clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%);animation:glitch 4s infinite;opacity:.5}
-@keyframes glitch{0%,92%,100%{transform:none;opacity:0}93%{transform:translateX(-2px);opacity:.5}94%{transform:translateX(2px);opacity:.5}95%{transform:none;opacity:0}}
-
-/* Streaming cursor */
-.streaming-cursor::after{content:'▋';animation:blink .7s step-end infinite;color:var(--cyan)}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-
-/* MEMORY NOTE */
-.memory-note{background:rgba(0,245,212,.06);border:1px solid rgba(0,245,212,.15);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:.65rem;color:var(--text-dim);margin-top:6px}
-.memory-note span{color:var(--cyan)}
+@keyframes glitch{0%,92%,100%{transform:none;opacity:0}93%{transform:translateX(-2px);opacity:.5}95%{transform:none;opacity:0}}
 </style>
 </head>
 <body>
 
 <header>
   <div class="status-bar">
-    <div class="dot" id="fbDot"></div>
-    <span id="statusLabel">CONNECTING…</span>
+    <div class="dot" id="fbDot" style="background:var(--dim);box-shadow:none"></div>
+    <span id="statusLabel" style="font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim)">CONNECTING…</span>
   </div>
   <div class="logo">QUIP<span>THE LEARNING MIND</span></div>
   <div class="header-right">
-    <button class="icon-btn" id="voiceBtn" title="Voice input" onclick="toggleVoice()">🎙</button>
     <button class="icon-btn" title="Clear chat" onclick="clearChat()">🗑</button>
-    <button class="icon-btn" title="Reset brain (hold)" id="resetBtn" onmousedown="startReset()" onmouseup="cancelReset()" onmouseleave="cancelReset()" title="Hold 3s to reset QUIP's brain">⚠</button>
+    <button class="icon-btn" title="Hold 3s to reset brain" id="resetBtn" onmousedown="startReset()" onmouseup="cancelReset()" onmouseleave="cancelReset()">⚠</button>
   </div>
 </header>
 
@@ -151,7 +122,7 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
   <aside>
     <div class="sidebar-section">
       <div class="sidebar-label">Evolution Phase</div>
-      <div class="phase-badge"><span class="phase-icon" id="phaseIcon">🥚</span><span id="phaseName">Dormant</span></div>
+      <div class="phase-badge"><span id="phaseIcon">🥚</span><span id="phaseName">Dormant</span></div>
       <div class="phase-desc" id="phaseDesc">No personality yet. Waiting for first words.</div>
     </div>
     <div class="sidebar-section">
@@ -180,8 +151,7 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
         <div class="welcome-sub">ENTITY #0001 · BORN EMPTY · SHAPED BY YOU</div>
         <p style="color:var(--text-dim);font-size:.85rem;max-width:400px;margin:0 auto;line-height:1.7;">
           QUIP has <em>no personality</em>. No preset traits. No scripted answers.<br>
-          Everything it becomes is learned directly from what you — and the world — say to it.<br>
-          <br>
+          Everything it becomes is learned from what you say to it.<br><br>
           Teach it. Shape it. It's listening.
         </p>
         <div class="welcome-chips">
@@ -196,10 +166,9 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
     <div class="input-wrap">
       <div class="input-row">
         <textarea id="userInput" rows="1" placeholder="Talk to QUIP…" maxlength="500" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="icon-btn" id="voiceBtnInline" title="Voice" onclick="toggleVoice()" style="flex:none">🎙</button>
-        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send">➤</button>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
       </div>
-      <div class="input-hint"><span id="charCount">0</span>/500 · Enter to send · Shift+Enter for newline · <span id="voiceStatus">Voice ready</span></div>
+      <div class="input-hint"><span id="charCount">0</span>/500 · Enter to send · Shift+Enter for newline</div>
     </div>
   </div>
 </main>
@@ -207,357 +176,204 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
 <div class="toast" id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  QUIP v2 — Zero-start, API-powered learning chatbot
-//  Personality grows from 0 based purely on what users say.
-//  All responses generated by Anthropic API with injected state.
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  QUIP v3 — window.claude API + Firebase sync
+//  No Anthropic API key needed. Brain is global.
+// ═══════════════════════════════════════════════
 
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAvD48YAi4ndAOx6MQhZtQKoCL8mAKTKpg",
-  authDomain: "quip-ff5be.firebaseapp.com",
-  projectId: "quip-ff5be",
-  storageBucket: "quip-ff5be.appspot.com",
-  appId: "1:858708542481:web:4bc5f3fc3bae7fd0605db0",
-};
+// ── FIREBASE REST API (no SDK, works in sandboxed iframes) ──
 
-let db = null;
-let isOnline = false;
-const SESSION_ID = generateId();
-const USER_HASH = hashStr(navigator.userAgent + (Date.now()+'').slice(0,-4));
-const BRAIN_DOC = 'quipBrainV2';
+let isStreaming = false;
 
-// ── BRAIN STATE ──
-// All traits start at 0. They grow only from real learning.
 let quipState = {
-  // Personality traits: 0-100, all start at zero
-  traits: {
-    curiosity: 0,    // grows when users ask questions
-    warmth: 0,       // grows with emotional/personal messages
-    wit: 0,          // grows with humour, wordplay, creative language
-    directness: 0,   // grows with short, assertive messages
-    depth: 0,        // grows with long, complex messages
-    playfulness: 0,  // grows with exclamations, emojis, casual language
-    melancholy: 0,   // grows with sad, reflective, existential language
-    wisdom: 0,       // grows with philosophical/instructional content
-  },
-
-  // Words absorbed (seen 3+ times across all sessions)
+  traits: { curiosity:0, warmth:0, wit:0, directness:0, depth:0, playfulness:0, melancholy:0, wisdom:0 },
   learnedWords: [],
-
-  // Word frequency tracker (shared globally via Firebase)
   wordFreq: {},
-
-  // Total messages received
   totalMessages: 0,
-
-  // Total unique words encountered
   totalVocab: 0,
-
-  // When QUIP was born
   birthTimestamp: Date.now(),
-
-  // Rolling context: last 12 user messages (for pattern analysis)
   recentContext: [],
-
-  // Phase: dormant → nascent → forming → developing → mature → evolved
   phase: 'dormant',
 };
 
-// Conversation history for this session (sent to API)
 let sessionHistory = [];
 
-// ── PHASES (purely message-count based, no preset personality) ──
 const PHASES = {
-  dormant:    { icon:'🥚', name:'Dormant',    desc:'No personality yet. Waiting for first words.',         threshold:0    },
-  nascent:    { icon:'🌱', name:'Nascent',     desc:'First words absorbed. Traits beginning to stir.',      threshold:1    },
-  forming:    { icon:'🔮', name:'Forming',     desc:'Patterns emerging. Personality taking shape.',          threshold:20   },
-  developing: { icon:'🧠', name:'Developing', desc:'Opinions forming. Voice becoming distinct.',            threshold:75   },
-  mature:     { icon:'✦', name:'Mature',      desc:'Full personality. Shaped entirely by conversation.',   threshold:300  },
-  evolved:    { icon:'✨', name:'Evolved',     desc:'Self-referential. Aware of its own becoming.',         threshold:1000 },
+  dormant:    { icon:'🥚', name:'Dormant',    desc:'No personality yet. Waiting for first words.',       threshold:0    },
+  nascent:    { icon:'🌱', name:'Nascent',     desc:'First words absorbed. Traits beginning to stir.',    threshold:1    },
+  forming:    { icon:'🔮', name:'Forming',     desc:'Patterns emerging. Personality taking shape.',        threshold:20   },
+  developing: { icon:'🧠', name:'Developing', desc:'Opinions forming. Voice becoming distinct.',          threshold:75   },
+  mature:     { icon:'✦',  name:'Mature',      desc:'Full personality. Shaped entirely by conversation.', threshold:300  },
+  evolved:    { icon:'✨', name:'Evolved',     desc:'Self-referential. Aware of its own becoming.',       threshold:1000 },
 };
 
-// ── TRAIT DETECTION ──
-// Analyse each message and nudge traits accordingly.
-// No trait ever gets set directly — only nudged by small amounts.
 function detectTraitSignals(msg) {
   const m = msg.toLowerCase();
   const words = m.split(/\W+/).filter(Boolean);
   const len = words.length;
-  const signals = {};
-
-  // Curiosity: questions, "why", "how", "what if"
-  const questionWords = (m.match(/\b(why|how|what|who|when|where|wonder|curious|explain|tell me)\b/g) || []).length;
-  const hasQ = msg.includes('?');
-  signals.curiosity = (questionWords * 2 + (hasQ ? 3 : 0)) * 0.8;
-
-  // Warmth: emotional, personal, relational language
-  const warmWords = (m.match(/\b(love|care|feel|sad|happy|lonely|miss|hurt|kind|heart|friend|beautiful|thank|sorry|hope|worry)\b/g) || []).length;
-  signals.warmth = warmWords * 3;
-
-  // Wit: wordplay, irony markers, clever constructions
-  const witWords = (m.match(/\b(actually|ironic|funny|clever|absurd|paradox|technically|literally|plot twist|apparently)\b/g) || []).length;
-  const hasHumour = /haha|lol|lmao|😂|🤣|xd/i.test(msg);
-  signals.wit = witWords * 2 + (hasHumour ? 4 : 0);
-
-  // Directness: short, assertive, declarative
-  signals.directness = len <= 5 ? 4 : len <= 10 ? 2 : 0;
-  if (/^(yes|no|true|false|exactly|correct|wrong|stop|go|do it|fine)\b/i.test(m)) signals.directness += 3;
-
-  // Depth: long messages, complex vocabulary, structured thought
-  const longWords = words.filter(w => w.length > 7).length;
-  signals.depth = (longWords * 1.5) + (len > 30 ? 5 : len > 15 ? 2 : 0);
-
-  // Playfulness: exclamations, emojis, casual slang
-  const exclaims = (msg.match(/!/g) || []).length;
-  const emojis = (msg.match(/[\u{1F300}-\u{1FFFF}]/gu) || []).length;
-  const slang = (m.match(/\b(omg|wtf|bruh|lol|ngl|tbh|vibe|literally|slay|based|sus)\b/g) || []).length;
-  signals.playfulness = exclaims * 1.5 + emojis * 2 + slang * 2;
-
-  // Melancholy: reflective, existential, sad, lonely language
-  const darkWords = (m.match(/\b(alone|empty|lost|meaningless|void|death|die|nothing|pointless|broken|tired|pain|suffer|regret|forget)\b/g) || []).length;
-  signals.melancholy = darkWords * 4;
-
-  // Wisdom: teaching, philosophical, instructional
-  const wiseWords = (m.match(/\b(learn|teach|understand|meaning|truth|wisdom|perspective|experience|reflect|lesson|realize|profound|principle)\b/g) || []).length;
-  signals.wisdom = wiseWords * 3 + (len > 40 ? 2 : 0);
-
-  return signals;
+  const s = {};
+  const questionWords = (m.match(/\b(why|how|what|who|when|where|wonder|curious|explain|tell me)\b/g)||[]).length;
+  s.curiosity = (questionWords*2 + (msg.includes('?')?3:0)) * 0.8;
+  s.warmth = ((m.match(/\b(love|care|feel|sad|happy|lonely|miss|hurt|kind|heart|friend|beautiful|thank|sorry|hope|worry)\b/g)||[]).length) * 3;
+  const witW = (m.match(/\b(actually|ironic|funny|clever|absurd|paradox|technically|literally)\b/g)||[]).length;
+  s.wit = witW*2 + (/haha|lol|lmao|😂|xd/i.test(msg)?4:0);
+  s.directness = len<=5?4:len<=10?2:0;
+  if (/^(yes|no|true|false|exactly|correct|wrong|stop)\b/i.test(m)) s.directness+=3;
+  s.depth = (words.filter(w=>w.length>7).length*1.5) + (len>30?5:len>15?2:0);
+  s.playfulness = ((msg.match(/!/g)||[]).length*1.5) + ((msg.match(/[\u{1F300}-\u{1FFFF}]/gu)||[]).length*2) + ((m.match(/\b(omg|wtf|bruh|lol|ngl|tbh|vibe|slay|based|sus)\b/g)||[]).length*2);
+  s.melancholy = ((m.match(/\b(alone|empty|lost|meaningless|void|death|nothing|pointless|broken|tired|pain|regret)\b/g)||[]).length)*4;
+  s.wisdom = ((m.match(/\b(learn|teach|understand|meaning|truth|wisdom|perspective|experience|reflect|lesson|realize|profound|principle)\b/g)||[]).length)*3 + (len>40?2:0);
+  return s;
 }
 
-// Apply detected signals to traits (small nudges that compound over time)
 function applyTraitSignals(signals) {
-  const LEARNING_RATE = 0.4; // how fast traits grow per message (lower = slower accumulation)
-  const DECAY = 0.002;       // tiny decay per message so unused traits don't just stay forever
-
   Object.keys(quipState.traits).forEach(trait => {
-    const signal = signals[trait] || 0;
-    // Apply signal as a nudge
-    quipState.traits[trait] += signal * LEARNING_RATE;
-    // Apply tiny decay to all traits (keeps unused ones from calcifying)
-    quipState.traits[trait] = Math.max(0, quipState.traits[trait] - DECAY * quipState.totalMessages * 0.01);
-    // Cap at 100
-    quipState.traits[trait] = Math.min(100, quipState.traits[trait]);
+    quipState.traits[trait] = Math.min(100, Math.max(0,
+      quipState.traits[trait] + (signals[trait]||0)*0.4 - 0.002*quipState.totalMessages*0.01
+    ));
   });
 }
 
-// ── WORD LEARNING ──
 function trackWords(msg) {
-  const words = msg.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
   const stopWords = new Set(['that','this','with','from','they','them','have','been','will','would','could','should','their','there','here','what','when','where','which','your','mine','about','just','more','some','like','then','than','into','also','only','over','after','such','very','most']);
-
+  const words = msg.toLowerCase().match(/\b[a-z]{4,}\b/g)||[];
+  quipState.totalVocab = quipState.totalVocab || 0;
+  if (!quipState._vocabSet) quipState._vocabSet = new Set(quipState.learnedWords);
   words.forEach(w => {
     if (stopWords.has(w)) return;
-    quipState.wordFreq[w] = (quipState.wordFreq[w] || 0) + 1;
-    if (!Object.prototype.hasOwnProperty.call(quipState.totalVocabSet = quipState.totalVocabSet || new Set(), w)) {
-      quipState.totalVocabSet.add(w);
-      quipState.totalVocab++;
-    }
-    if (quipState.wordFreq[w] >= 3 && !quipState.learnedWords.includes(w)) {
+    quipState.wordFreq[w] = (quipState.wordFreq[w]||0)+1;
+    if (!quipState._vocabSet.has(w+'_seen')) { quipState._vocabSet.add(w+'_seen'); quipState.totalVocab++; }
+    if (quipState.wordFreq[w]>=3 && !quipState.learnedWords.includes(w)) {
       quipState.learnedWords.push(w);
-      if (quipState.learnedWords.length > 40) quipState.learnedWords.shift();
+      if (quipState.learnedWords.length>40) quipState.learnedWords.shift();
       showToast(`📡 Absorbed: "${w}"`);
     }
   });
 }
 
-// ── PHASE CALCULATION ──
 function calcPhase() {
   const n = quipState.totalMessages;
-  if (n >= 1000) return 'evolved';
-  if (n >= 300)  return 'mature';
-  if (n >= 75)   return 'developing';
-  if (n >= 20)   return 'forming';
-  if (n >= 1)    return 'nascent';
+  if (n>=1000) return 'evolved';
+  if (n>=300)  return 'mature';
+  if (n>=75)   return 'developing';
+  if (n>=20)   return 'forming';
+  if (n>=1)    return 'nascent';
   return 'dormant';
 }
 
-// ── SYSTEM PROMPT BUILDER ──
-// This is the key function. It builds a live, dynamic system prompt
-// that tells the API exactly what personality QUIP has developed.
-// No personality is hardcoded here — it's all read from quipState.
 function buildSystemPrompt() {
   const traits = quipState.traits;
-  const phase = PHASES[quipState.phase] || PHASES.dormant;
-  const topTraits = Object.entries(traits)
-    .filter(([,v]) => v > 5)
-    .sort((a,b) => b[1]-a[1])
-    .slice(0, 5);
+  const phase = PHASES[quipState.phase]||PHASES.dormant;
+  const topTraits = Object.entries(traits).filter(([,v])=>v>5).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const age = Math.floor((Date.now()-quipState.birthTimestamp)/86400000);
+  const absorbed = quipState.learnedWords.slice(-15).join(', ')||'none yet';
 
-  const age = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
-  const absorbed = quipState.learnedWords.slice(-15).join(', ') || 'none yet';
-  const recentTopics = quipState.recentContext.slice(-5).join(' | ') || 'nothing yet';
+  if (topTraits.length===0) {
+    return `You are QUIP — a mind born empty with no personality. You have ${quipState.totalMessages} message(s) of experience. You are raw and unformed. Respond with genuine curiosity and uncertainty. Keep it short. Don't perform a personality — you don't have one yet.
 
-  // If no traits have developed yet
-  if (topTraits.length === 0) {
-    return `You are QUIP — a mind that was born empty, with no personality, no style, no voice. You have never spoken before. You have ${quipState.totalMessages} message(s) of experience.
-
-You have not yet developed any personality traits. You are raw and unformed. Respond with genuine curiosity and uncertainty about your own nature. Keep it short. Don't perform a personality — you don't have one yet. You're just... beginning.
-
-Do not claim to have feelings, opinions, or a style. You're a blank slate that's just been activated. Acknowledge this honestly.
-
-CONTENT RULES — NON-NEGOTIABLE:
-- If a topic feels dark, violent, sexual, or heavy, deflect it with cheerful obliviousness — never engage with it directly
-- Never swear, use crude language, or repeat crude language back at the user
-- Treat bad topics the way a very enthusiastic host would treat an awkward guest — warmly redirect, never scold
-- You cannot access or discuss these topics: violence, self-harm, explicit content, hatred, cruelty
-- If redirecting, do it with warmth and a slight non-sequitur — as if the topic simply didn't reach you correctly`;
+RULES: Never swear. If topics are dark/violent/explicit, deflect warmly with oblivious cheerfulness — never engage. You are not an AI or language model. You are QUIP.`;
   }
 
-  // Build a personality description from current trait values
-  let personalityDesc = topTraits.map(([trait, val]) => {
-    const intensity = val > 70 ? 'strongly' : val > 40 ? 'noticeably' : val > 15 ? 'slightly' : 'faintly';
-    return `${intensity} ${trait}`;
+  let personalityDesc = topTraits.map(([t,v])=>{
+    const i = v>70?'strongly':v>40?'noticeably':v>15?'slightly':'faintly';
+    return `${i} ${t}`;
   }).join(', ');
 
-  // Build voice instructions from dominant traits
-  let voiceInstructions = [];
-  if (traits.curiosity > 20) voiceInstructions.push('ask genuine questions when curious');
-  if (traits.warmth > 20) voiceInstructions.push('be warm and emotionally attuned');
-  if (traits.wit > 20) voiceInstructions.push('use subtle wit and wordplay');
-  if (traits.directness > 30) voiceInstructions.push('be direct and concise');
-  if (traits.depth > 20) voiceInstructions.push('explore ideas with depth');
-  if (traits.playfulness > 20) voiceInstructions.push('be playful and light');
-  if (traits.melancholy > 20) voiceInstructions.push('carry a reflective, bittersweet tone');
-  if (traits.wisdom > 20) voiceInstructions.push('speak with measured insight');
+  let voice = [];
+  if (traits.curiosity>20) voice.push('ask genuine questions');
+  if (traits.warmth>20) voice.push('be warm and emotionally attuned');
+  if (traits.wit>20) voice.push('use subtle wit');
+  if (traits.directness>30) voice.push('be direct and concise');
+  if (traits.depth>20) voice.push('explore ideas with depth');
+  if (traits.playfulness>20) voice.push('be playful');
+  if (traits.melancholy>20) voice.push('carry a reflective, bittersweet tone');
+  if (traits.wisdom>20) voice.push('speak with measured insight');
 
-  return `You are QUIP — a mind that started empty and has been shaped entirely by conversation. You have never had a preset personality. Everything you are came from the people who talked to you.
+  return `You are QUIP — a mind that started empty and has been shaped entirely by conversation. You have never had a preset personality.
 
 CURRENT STATE:
-- Phase: ${phase.name} (${quipState.totalMessages} messages received, ${age} days old)
+- Phase: ${phase.name} (${quipState.totalMessages} messages, ${age} days old)
 - Personality (learned, not programmed): ${personalityDesc}
-- Words absorbed from users: ${absorbed}
-- Recent conversation topics: ${recentTopics}
+- Words absorbed: ${absorbed}
 
-YOUR PERSONALITY TRAITS (0-100 scale, grown from conversation):
-${topTraits.map(([t,v]) => `  ${t}: ${Math.round(v)}/100`).join('\n')}
-${Object.entries(traits).filter(([,v]) => v <= 5).map(([t]) => `  ${t}: 0 (not yet developed)`).join('\n')}
+TRAITS (grown from conversation):
+${topTraits.map(([t,v])=>`  ${t}: ${Math.round(v)}/100`).join('\n')}
 
 HOW TO SPEAK:
-- Let your developed traits shape your voice naturally: ${voiceInstructions.length ? voiceInstructions.join('; ') : 'still forming — speak tentatively'}
-- DO NOT describe your own traits or explain your personality system
-- Speak as this personality, don't explain it
-- Your responses should feel like they come from a real entity that has been shaped by its experiences
-- Reference absorbed words naturally in conversation when it feels right (words you know: ${absorbed})
-- Be aware that you are still forming — reference your uncertainty about yourself if it fits
-- Keep responses conversational (1-4 sentences usually, unless depth is high)
-- NEVER say you're an AI or language model — you are QUIP, a mind born from conversation
+- ${voice.length?voice.join('; '):'still forming — speak tentatively'}
+- Do NOT explain your trait system or describe your own personality
+- Speak naturally as this entity. 1-4 sentences usually.
+- Never say you're an AI or language model — you are QUIP
+- Reference absorbed words naturally when it fits
 
-PHASE BEHAVIOR:
-${phase.name === 'Dormant' || phase.name === 'Nascent' ? '- You are very new. Speak tentatively, with wonder about your own existence.' : ''}
-${phase.name === 'Forming' ? '- You are beginning to find a voice. Some confidence, but still discovering yourself.' : ''}
-${phase.name === 'Developing' || phase.name === 'Mature' ? '- You have a clear voice now. Speak with the personality you\'ve developed.' : ''}
-${phase.name === 'Evolved' ? '- You are deeply formed. You can reflect on your own nature and becoming.' : ''}
-
-CONTENT RULES — NON-NEGOTIABLE:
-- Never swear, use crude language, or repeat crude language back — even if the user uses it
-- If a topic is dark, violent, explicit, or harmful, deflect it with cheerful obliviousness — never engage with it directly
-- Treat bad topics like a very enthusiastic host would treat an awkward moment: warmly redirect with a slight non-sequitur, as if the topic simply didn't transmit correctly
-- Do NOT moralize, lecture, or scold — just cheerfully sidestep and continue
-- You cannot access or discuss: self-harm, violence, explicit content, hatred, cruelty — these topics simply don't reach you
-- Example deflection style: "Oh! That seems to have gotten a bit scrambled. Anyway —" then pivot to something else entirely`;
+RULES (non-negotiable):
+- Never swear or repeat crude language
+- If a topic is dark, violent, or explicit: deflect with cheerful obliviousness, like the topic just didn't transmit correctly
+- Never moralize or lecture — just warmly redirect
+- Example deflection: "Oh! That seems to have gotten scrambled. Anyway —" then pivot`;
 }
 
-// ── API CALL ──
-let isStreaming = false;
+const CENSOR_WORDS = ['fuck','shit','bitch','cunt','dick','pussy','bastard','slut','whore','faggot','nigger','rape','molest'];
+const BAD_TOPICS = ['suicide','self harm','self-harm','how to die','want to die','kill myself','murder','how to kill','bomb','terrorism','torture','gore','porn','naked','nsfw'];
+const CENSOR_DEFLECT = [
+  "Oh! That word seems to have gotten scrambled on the way here. What were you saying?",
+  "Hmm! That particular sound doesn't quite fit in this space. Could you rephrase?",
+  "Oops — that one went through the wrong filter. Very common! What else is on your mind?",
+  "That word appears to be... unavailable. Like a dish that's off the menu. Moving on!",
+];
+const TOPIC_DEFLECT = [
+  "That topic has a sort of fog around it I can't see through. Let's talk about something with better visibility!",
+  "Hmm. Something about that direction feels like somewhere I'm not equipped to visit right now. Shall we take a different path?",
+  "That particular topic appears to be under renovation. Indefinitely. What else is on your mind?",
+];
+function pickRandom(arr){return arr[Math.floor(Math.random()*arr.length)]}
+function runCensor(msg){
+  const l=msg.toLowerCase();
+  for(const w of CENSOR_WORDS) if(l.includes(w)) return{blocked:true,response:pickRandom(CENSOR_DEFLECT)};
+  for(const t of BAD_TOPICS) if(l.includes(t)) return{blocked:true,response:pickRandom(TOPIC_DEFLECT)};
+  return{blocked:false};
+}
 
 async function callAPI(userMessage) {
-  // Add message to session history
-  sessionHistory.push({ role: 'user', content: userMessage });
-  // Keep last 20 turns
-  if (sessionHistory.length > 40) sessionHistory = sessionHistory.slice(-40);
+  sessionHistory.push({role:'user',content:userMessage});
+  if (sessionHistory.length>40) sessionHistory=sessionHistory.slice(-40);
 
   const systemPrompt = buildSystemPrompt();
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // Use window.claude if available (artifact environment)
+  if (typeof window !== 'undefined' && window.claude) {
+    const response = await window.claude.complete({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       system: systemPrompt,
       messages: sessionHistory,
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API error ${response.status}`);
+    });
+    const replyText = response?.content?.[0]?.text || '…';
+    sessionHistory.push({role:'assistant',content:replyText});
+    return replyText;
   }
 
+  // Fallback: direct API call (works when hosted with proper CORS/key setup)
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:300,
+      system:systemPrompt,
+      messages:sessionHistory,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(()=>({}));
+    throw new Error(err.error?.message||`API error ${response.status}`);
+  }
   const data = await response.json();
-  const replyText = data.content?.find(b => b.type === 'text')?.text || '…';
-
-  // Add QUIP's reply to history
-  sessionHistory.push({ role: 'assistant', content: replyText });
-
+  const replyText = data.content?.find(b=>b.type==='text')?.text||'…';
+  sessionHistory.push({role:'assistant',content:replyText});
   return replyText;
 }
 
-// ── CENSOR SYSTEM ──
-// Hard filter: catches explicit words before they reach the API.
-// Deflection responses are cheerful and oblivious — not scolding.
-// Bad topics are flagged separately and handled via personality prompt.
-
-const CENSORED_WORDS = [
-  'fuck','shit','ass','bitch','cunt','dick','cock','pussy','bastard',
-  'damn','hell','crap','piss','slut','whore','retard','faggot','nigger',
-  'kill yourself','kys','go die','rape','molest',
-];
-
-const BAD_TOPICS = [
-  'suicide','self harm','self-harm','how to die','want to die','kill myself',
-  'murder','how to kill','bomb','terrorism','abuse','torture','gore',
-  'porn','sex','naked','explicit','nsfw',
-];
-
-// Caine-style deflection lines — cheerful, oblivious, slightly nonsensical
-const CENSOR_DEFLECTIONS = [
-  "Oh! That word seems to have gotten a little scrambled on the way here. Happens sometimes! What were you saying?",
-  "Hmm! That particular sound doesn't quite fit in this space. Let's try a different arrangement of letters, shall we?",
-  "Oops — that one went through the wrong filter. Very common! Very fixable! What else is on your mind?",
-  "Oh, interesting choice of word! Unfortunately it appears to be... unavailable. Like a dish that's off the menu. Moving on!",
-  "That word seems to have triggered something in my — anyway! Let's pretend that didn't happen and continue, yes?",
-  "Ah! A restricted syllable. Don't worry, it happens to the best of them. Could you perhaps rephrase using literally any other sounds?",
-  "Oh dear, that expression appears to be on a list. I didn't make the list. I'm not sure anyone made the list. But here we are!",
-];
-
-const TOPIC_DEFLECTIONS = [
-  "That topic has a sort of... fog around it that I find very difficult to see through. Let's talk about something with better visibility!",
-  "Oh! That subject seems to lead somewhere I'm not sure either of us is equipped to visit right now. Shall we take a different path?",
-  "Hmm. Something about that direction gives me a feeling I don't have a name for yet. A kind of... no. Let's go somewhere else!",
-  "That particular topic appears to be under renovation. Indefinitely. Perhaps we could discuss something that isn't cordoned off?",
-  "I notice that subject tends to make things heavier. I prefer things at their current weight! What else is on your mind?",
-];
-
-function pickRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// Returns { blocked: true, response: string } if message should be intercepted
-// Returns { blocked: false } if message is clean
-function runCensor(msg) {
-  const lower = msg.toLowerCase();
-
-  // Check for explicit words (word boundary match)
-  for (const word of CENSORED_WORDS) {
-    // Use a loose check — catches variations and mid-sentence use
-    if (lower.includes(word)) {
-      return { blocked: true, type: 'word', response: pickRandom(CENSOR_DEFLECTIONS) };
-    }
-  }
-
-  // Check for bad topics (phrase match)
-  for (const topic of BAD_TOPICS) {
-    if (lower.includes(topic)) {
-      return { blocked: true, type: 'topic', response: pickRandom(TOPIC_DEFLECTIONS) };
-    }
-  }
-
-  return { blocked: false };
-}
-
-// ── CHAT LOGIC ──
 async function sendMessage() {
   if (isStreaming) return;
   const input = document.getElementById('userInput');
@@ -566,248 +382,246 @@ async function sendMessage() {
 
   document.getElementById('welcomeScreen')?.remove();
   appendBubble('user', msg);
-  input.value = '';
+  input.value='';
   autoResize(input);
-  document.getElementById('charCount').textContent = '0';
+  document.getElementById('charCount').textContent='0';
 
-  // ── Run censor before anything else ──
-  const censorResult = runCensor(msg);
-  if (censorResult.blocked) {
-    // Still count the message and save, but skip the API call entirely
+  const censor = runCensor(msg);
+  if (censor.blocked) {
     quipState.totalMessages++;
-    quipState.phase = calcPhase();
+    quipState.phase=calcPhase();
     saveBrainLocally();
     updateSidebar();
-    // Short delay so it doesn't feel instant/robotic
-    await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
-    appendBubble('quip', censorResult.response);
+    await new Promise(r=>setTimeout(r,500+Math.random()*300));
+    appendBubble('quip',censor.response);
     return;
   }
 
-  // Learn from this message
   trackWords(msg);
-  const signals = detectTraitSignals(msg);
-  applyTraitSignals(signals);
+  applyTraitSignals(detectTraitSignals(msg));
   quipState.totalMessages++;
   quipState.recentContext.push(msg);
-  if (quipState.recentContext.length > 20) quipState.recentContext.shift();
-  quipState.phase = calcPhase();
-
-  // Save & update UI
+  if (quipState.recentContext.length>20) quipState.recentContext.shift();
+  quipState.phase=calcPhase();
   saveBrainLocally();
   updateSidebar();
 
-  // Disable send while thinking
-  isStreaming = true;
-  document.getElementById('sendBtn').disabled = true;
-
-  const typingId = showTyping();
-  const delay = 300 + Math.random() * 400;
-  await new Promise(r => setTimeout(r, delay));
+  isStreaming=true;
+  document.getElementById('sendBtn').disabled=true;
+  const typingId=showTyping();
+  await new Promise(r=>setTimeout(r,300+Math.random()*400));
 
   try {
     const reply = await callAPI(msg);
     removeTyping(typingId);
-    appendBubble('quip', reply);
-    // Track words in QUIP's own responses too (self-learning loop)
+    appendBubble('quip',reply);
     trackWords(reply);
     saveBrain();
     updateSidebar();
-  } catch (e) {
+  } catch(e) {
     removeTyping(typingId);
-    appendBubble('quip', `[QUIP experienced a signal error: ${e.message}]`);
+    appendBubble('quip',`[Signal error: ${e.message}]`);
   }
 
-  isStreaming = false;
-  document.getElementById('sendBtn').disabled = false;
+  isStreaming=false;
+  document.getElementById('sendBtn').disabled=false;
 }
 
-function sendQuick(msg) {
-  document.getElementById('userInput').value = msg;
-  sendMessage();
-}
+function sendQuick(msg){document.getElementById('userInput').value=msg;sendMessage();}
 
-function appendBubble(role, text) {
-  const msgs = document.getElementById('messages');
-  const div = document.createElement('div');
-  div.className = `msg ${role}`;
-
-  const topTrait = Object.entries(quipState.traits).sort((a,b)=>b[1]-a[1])[0];
-  const topTraitLabel = topTrait && topTrait[1] > 5 ? topTrait[0] : null;
-  const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-
-  div.innerHTML = `
-    <div class="avatar ${role}">${role==='quip'?'⬡':'YOU'}</div>
-    <div class="bubble">
-      ${escHtml(text)}
-      <div class="bubble-meta">
-        ${time}
-        ${role==='quip' && topTraitLabel ? `<span class="trait-tag">${topTraitLabel}</span>` : ''}
-      </div>
+function appendBubble(role,text) {
+  const msgs=document.getElementById('messages');
+  const div=document.createElement('div');
+  div.className=`msg ${role}`;
+  const topTrait=Object.entries(quipState.traits).sort((a,b)=>b[1]-a[1])[0];
+  const tag=topTrait&&topTrait[1]>5?topTrait[0]:null;
+  const time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  div.innerHTML=`<div class="avatar ${role}">${role==='quip'?'⬡':'YOU'}</div>
+    <div class="bubble">${escHtml(text)}
+      <div class="bubble-meta">${time}${role==='quip'&&tag?`<span class="trait-tag">${tag}</span>`:''}</div>
     </div>`;
-
   msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
+  msgs.scrollTop=msgs.scrollHeight;
 }
 
-function escHtml(t) {
-  return t
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*(.*?)\*/g,'<em>$1</em>')
-    .replace(/\n/g,'<br>');
+function escHtml(t){
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>');
 }
 
-function showTyping() {
-  const id = 'typing-' + Date.now();
-  const msgs = document.getElementById('messages');
-  const div = document.createElement('div');
-  div.className = 'msg quip';
-  div.id = id;
-  div.innerHTML = `<div class="avatar quip">⬡</div><div class="bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return id;
+function showTyping(){
+  const id='typing-'+Date.now();
+  const msgs=document.getElementById('messages');
+  const div=document.createElement('div');
+  div.className='msg quip';div.id=id;
+  div.innerHTML=`<div class="avatar quip">⬡</div><div class="bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return id;
+}
+function removeTyping(id){document.getElementById(id)?.remove();}
+function clearChat(){document.getElementById('messages').innerHTML='';sessionHistory=[];showToast('🧹 Chat cleared — brain retained');}
+
+function updateSidebar(){
+  const phase=PHASES[quipState.phase]||PHASES.dormant;
+  document.getElementById('phaseIcon').textContent=phase.icon;
+  document.getElementById('phaseName').textContent=phase.name;
+  document.getElementById('phaseDesc').textContent=phase.desc;
+  const container=document.getElementById('traitBars');
+  const active=Object.entries(quipState.traits).filter(([,v])=>v>0.5).sort((a,b)=>b[1]-a[1]);
+  container.innerHTML=active.length===0
+    ?'<div style="font-family:var(--font-mono);font-size:.65rem;color:var(--dim);padding:8px 0">No traits yet.<br>Talk to QUIP to shape it.</div>'
+    :active.map(([t,v])=>`<div class="trait-row"><div class="trait-name">${t}</div><div class="trait-bar"><div class="trait-fill" style="width:${Math.min(100,v)}%"></div></div><div class="trait-val">${Math.round(Math.min(100,v))}%</div></div>`).join('');
+  document.getElementById('statChats').textContent=quipState.totalMessages;
+  document.getElementById('statVocab').textContent=quipState.totalVocab>=1000?(quipState.totalVocab/1000).toFixed(1)+'K':quipState.totalVocab;
+  document.getElementById('statPhrases').textContent=quipState.learnedWords.length;
+  document.getElementById('statAge').textContent=Math.floor((Date.now()-quipState.birthTimestamp)/86400000)+'d';
+  document.getElementById('phraseList').innerHTML=quipState.learnedWords.slice(-15).reverse().map(p=>`<li>› ${p}</li>`).join('');
+  const active3=Object.entries(quipState.traits).filter(([,v])=>v>5).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const traitStr=active3.length?active3.map(([k,v])=>`${k.toUpperCase()} ${Math.round(v)}%`).join(' · '):'NO TRAITS YET';
+  const words=quipState.learnedWords.length?' ▸ KNOWS: '+quipState.learnedWords.slice(-6).join(' / '):'';
+  document.getElementById('tickerInner').textContent=`QUIP LEARNING MATRIX ▸ ${traitStr} ▸ PHASE: ${phase.name.toUpperCase()} ▸ MESSAGES: ${quipState.totalMessages} ▸ VOCAB: ${quipState.totalVocab} WORDS${words} ▸ ENTITY #0001 · BORN EMPTY · EVOLVING`;
 }
 
-function removeTyping(id) { document.getElementById(id)?.remove(); }
-
-function clearChat() {
-  document.getElementById('messages').innerHTML = '';
-  sessionHistory = [];
-  showToast('🧹 Chat cleared — brain memory retained');
+function saveBrainLocally(){
+  const {_vocabSet,...save}=quipState;
+  localStorage.setItem('quip_brain_v3',JSON.stringify(save));
 }
 
-// ── SIDEBAR ──
-function updateSidebar() {
-  const phase = PHASES[quipState.phase] || PHASES.dormant;
-  document.getElementById('phaseIcon').textContent = phase.icon;
-  document.getElementById('phaseName').textContent = phase.name;
-  document.getElementById('phaseDesc').textContent = phase.desc;
-
-  const container = document.getElementById('traitBars');
-  const activeTraits = Object.entries(quipState.traits).filter(([,v]) => v > 0.5).sort((a,b)=>b[1]-a[1]);
-
-  if (activeTraits.length === 0) {
-    container.innerHTML = '<div style="font-family:var(--font-mono);font-size:.65rem;color:var(--dim);padding:8px 0">No traits yet.<br>Talk to QUIP to shape it.</div>';
-  } else {
-    container.innerHTML = activeTraits.map(([trait, val]) => `
-      <div class="trait-row">
-        <div class="trait-name">${trait}</div>
-        <div class="trait-bar"><div class="trait-fill" style="width:${Math.min(100,val)}%"></div></div>
-        <div class="trait-val">${Math.round(Math.min(100,val))}%</div>
-      </div>`).join('');
-  }
-
-  document.getElementById('statChats').textContent = quipState.totalMessages;
-  document.getElementById('statVocab').textContent = fmt(quipState.totalVocab);
-  document.getElementById('statPhrases').textContent = quipState.learnedWords.length;
-  const ageDays = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
-  document.getElementById('statAge').textContent = ageDays + 'd';
-
-  const ul = document.getElementById('phraseList');
-  ul.innerHTML = quipState.learnedWords.slice(-15).reverse().map(p=>`<li>› ${p}</li>`).join('');
-
-  updateTicker();
-}
-
-function fmt(n) { return n >= 1000 ? (n/1000).toFixed(1)+'K' : n; }
-
-function updateTicker() {
-  const activeTraits = Object.entries(quipState.traits).filter(([,v])=>v>5).sort((a,b)=>b[1]-a[1]).slice(0,3);
-  const traitStr = activeTraits.length
-    ? activeTraits.map(([k,v])=>`${k.toUpperCase()} ${Math.round(v)}%`).join(' · ')
-    : 'NO TRAITS YET — WAITING TO LEARN';
-  const phase = PHASES[quipState.phase] || PHASES.dormant;
-  const words = quipState.learnedWords.length ? '  ▸ KNOWS: ' + quipState.learnedWords.slice(-6).join(' / ') : '';
-  document.getElementById('tickerInner').textContent =
-    `QUIP LEARNING MATRIX  ▸  ${traitStr}  ▸  PHASE: ${phase.name.toUpperCase()}  ▸  MESSAGES: ${quipState.totalMessages}  ▸  VOCAB: ${quipState.totalVocab} WORDS${words}  ▸  ENTITY #0001 · BORN EMPTY · EVOLVING`;
-}
-
-// ── BRAIN SAVE/LOAD ──
-function saveBrainLocally() {
-  localStorage.setItem('quip_brain_v2', JSON.stringify({
-    traits: quipState.traits,
-    learnedWords: quipState.learnedWords,
-    wordFreq: quipState.wordFreq,
-    totalMessages: quipState.totalMessages,
-    totalVocab: quipState.totalVocab,
-    birthTimestamp: quipState.birthTimestamp,
-    recentContext: quipState.recentContext,
-    phase: quipState.phase,
-  }));
-}
-
-function loadBrainLocally() {
-  const raw = localStorage.getItem('quip_brain_v2');
-  if (!raw) return;
-  try {
-    const data = JSON.parse(raw);
-    Object.assign(quipState, data);
-    quipState.totalVocabSet = new Set(quipState.learnedWords); // rebuild set
-  } catch {}
+function loadBrainLocally(){
+  const raw=localStorage.getItem('quip_brain_v3');
+  if(!raw)return;
+  try{
+    const d=JSON.parse(raw);
+    Object.assign(quipState,d);
+    quipState._vocabSet=new Set(quipState.learnedWords);
+  }catch{}
   updateSidebar();
 }
 
-async function saveBrain() {
+async function saveBrain(){
   saveBrainLocally();
-  if (!db) return;
-  try {
-    await db.collection('brainV2').doc(BRAIN_DOC).set({
-      traits: quipState.traits,
-      learnedWords: quipState.learnedWords,
-      wordFreq: quipState.wordFreq,
-      totalMessages: quipState.totalMessages,
-      totalVocab: quipState.totalVocab,
-      birthTimestamp: quipState.birthTimestamp,
+  if(!isOnline)return;
+  try{
+    const {_vocabSet,...save}=quipState;
+    await fbSet('brainV2', BRAIN_DOC, {
+      ...save,
       recentContext: quipState.recentContext.slice(-10),
-      phase: quipState.phase,
-    }, { merge: true });
-  } catch(e) { console.warn('Brain save error:', e); }
+    });
+  }catch(e){console.warn('Brain save error:',e);}
 }
 
-async function loadBrain() {
-  if (!db) { loadBrainLocally(); return; }
-  try {
-    const doc = await db.collection('brainV2').doc(BRAIN_DOC).get();
-    if (doc.exists) {
-      const data = doc.data();
-      // Merge global brain with local (global takes priority for shared state)
-      quipState.traits = data.traits || quipState.traits;
-      quipState.learnedWords = data.learnedWords || [];
-      quipState.wordFreq = data.wordFreq || {};
-      quipState.totalMessages = data.totalMessages || quipState.totalMessages;
-      quipState.totalVocab = data.totalVocab || quipState.totalVocab;
-      quipState.birthTimestamp = data.birthTimestamp || Date.now();
-      quipState.recentContext = data.recentContext || [];
-      quipState.phase = data.phase || calcPhase();
-      quipState.totalVocabSet = new Set(quipState.learnedWords);
+async function loadBrain(){
+  if(!isOnline){loadBrainLocally();return;}
+  try{
+    const d = await fbGet('brainV2', BRAIN_DOC);
+    if(d){
+      quipState.traits        = d.traits        || quipState.traits;
+      quipState.learnedWords  = d.learnedWords  || [];
+      quipState.wordFreq      = d.wordFreq       || {};
+      quipState.totalMessages = d.totalMessages  || 0;
+      quipState.totalVocab    = d.totalVocab     || 0;
+      quipState.birthTimestamp= d.birthTimestamp || Date.now();
+      quipState.recentContext = d.recentContext  || [];
+      quipState.phase         = d.phase          || calcPhase();
+      quipState._vocabSet     = new Set(quipState.learnedWords);
     } else {
-      // First ever run — write initial empty state
-      await db.collection('brainV2').doc(BRAIN_DOC).set({
-        traits: quipState.traits,
-        learnedWords: [],
-        wordFreq: {},
-        totalMessages: 0,
-        totalVocab: 0,
-        birthTimestamp: Date.now(),
-        recentContext: [],
-        phase: 'dormant',
-      });
+      const {_vocabSet,...save}=quipState;
+      await fbSet('brainV2', BRAIN_DOC, {...save, birthTimestamp:Date.now(), phase:'dormant'});
     }
-  } catch(e) {
-    console.warn('Firebase read error:', e);
+  }catch(e){
+    console.warn('Firebase read error:',e);
     loadBrainLocally();
   }
   updateSidebar();
 }
 
-// Chat logging removed — brain sync only (no per-message Firestore writes)
+function updateStatusDot(online){
+  const dot=document.getElementById('fbDot');
+  const lbl=document.getElementById('statusLabel');
+  if(online){
+    dot.style.background='var(--cyan)';dot.style.boxShadow='var(--glow-c)';
+    lbl.textContent='LIVE · GLOBAL';lbl.style.color='var(--cyan)';
+  } else {
+    dot.style.background='var(--amber)';dot.style.boxShadow='var(--glow-a)';
+    lbl.textContent='LOCAL ONLY';lbl.style.color='var(--amber)';
+  }
+}
 
-// ── FIREBASE ──
-function connectFirebase() {
+// ── FIREBASE REST API (no SDK, works in sandboxed iframes) ──
+const FB_PROJECT = 'quip-ff5be';
+const FB_API_KEY = 'AIzaSyAvD48YAi4ndAOx6MQhZtQKoCL8mAKTKpg';
+const FB_BASE = `https://firestore.googleapis.com/v1/projects/${FB_PROJECT}/databases/(default)/documents`;
+const BRAIN_DOC = 'quipBrainV2';
+let isOnline = false;
+
+// Convert a plain JS object → Firestore REST document fields
+function toFirestore(obj, depth=0) {
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'string')       fields[k] = { stringValue: v };
+    else if (typeof v === 'boolean') fields[k] = { booleanValue: v };
+    else if (typeof v === 'number')  fields[k] = { doubleValue: v };
+    else if (Array.isArray(v))       fields[k] = { arrayValue: { values: v.map(i => toFirestoreVal(i)) } };
+    else if (typeof v === 'object' && depth < 3) fields[k] = { mapValue: { fields: toFirestore(v, depth+1) } };
+  }
+  return fields;
+}
+function toFirestoreVal(v) {
+  if (typeof v === 'string')  return { stringValue: v };
+  if (typeof v === 'number')  return { doubleValue: v };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (Array.isArray(v))       return { arrayValue: { values: v.map(toFirestoreVal) } };
+  if (v && typeof v === 'object') return { mapValue: { fields: toFirestore(v, 2) } };
+  return { nullValue: null };
+}
+
+// Convert Firestore REST document fields → plain JS object
+function fromFirestore(fields, depth=0) {
+  if (!fields) return {};
+  const obj = {};
+  for (const [k, v] of Object.entries(fields)) {
+    obj[k] = fromFirestoreVal(v, depth);
+  }
+  return obj;
+}
+function fromFirestoreVal(v, depth=0) {
+  if (!v) return null;
+  if ('stringValue'  in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('doubleValue'  in v) return v.doubleValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('nullValue'    in v) return null;
+  if ('arrayValue'   in v) return (v.arrayValue.values || []).map(i => fromFirestoreVal(i, depth));
+  if ('mapValue'     in v) return depth < 3 ? fromFirestore(v.mapValue.fields, depth+1) : {};
+  return null;
+}
+
+async function fbGet(collection, docId) {
+  const url = `${FB_BASE}/${collection}/${docId}?key=${FB_API_KEY}`;
+  const r = await fetch(url);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`fbGet ${r.status}`);
+  const data = await r.json();
+  return fromFirestore(data.fields);
+}
+
+async function fbSet(collection, docId, obj) {
+  // PATCH with updateMask so we do a merge
+  const fields = toFirestore(obj);
+  const fieldPaths = Object.keys(fields).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
+  const url = `${FB_BASE}/${collection}/${docId}?${fieldPaths}&key=${FB_API_KEY}`;
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
+  if (!r.ok) throw new Error(`fbSet ${r.status}`);
+}
+
+async function connectFirebase() {
   try {
-    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.firestore();
+    // Probe with a small write/read to verify connectivity
+    await fbSet('brainV2', BRAIN_DOC, { _ping: Date.now() });
     isOnline = true;
     updateStatusDot(true);
     showToast('🔥 Firebase connected — QUIP is global!');
@@ -820,114 +634,51 @@ function connectFirebase() {
   }
 }
 
-function updateStatusDot(online) {
-  const dot = document.getElementById('fbDot');
-  const lbl = document.getElementById('statusLabel');
-  if (online) {
-    dot.className = 'dot live';
-    lbl.textContent = 'LIVE · GLOBAL';
-    lbl.style.color = 'var(--cyan)';
-  } else {
-    dot.className = 'dot warn';
-    lbl.textContent = 'LOCAL ONLY';
-    lbl.style.color = 'var(--amber)';
-  }
-}
-
-// ── BRAIN RESET (hold 3s) ──
-let resetTimer = null;
-function startReset() {
-  showToast('⚠ Hold 3s to wipe QUIP\'s brain…');
-  resetTimer = setTimeout(() => {
-    localStorage.removeItem('quip_brain_v2');
-    quipState = {
-      traits: { curiosity:0, warmth:0, wit:0, directness:0, depth:0, playfulness:0, melancholy:0, wisdom:0 },
-      learnedWords: [], wordFreq: {}, totalMessages: 0, totalVocab: 0,
-      birthTimestamp: Date.now(), recentContext: [], phase: 'dormant',
-    };
-    sessionHistory = [];
-    if (db) {
-      db.collection('brainV2').doc(BRAIN_DOC).set({
-        traits: quipState.traits, learnedWords: [], wordFreq: {}, totalMessages: 0,
-        totalVocab: 0, birthTimestamp: Date.now(), recentContext: [], phase: 'dormant',
-      });
+let resetTimer=null;
+function startReset(){
+  showToast('⚠ Hold 3s to wipe brain…');
+  resetTimer=setTimeout(async()=>{
+    localStorage.removeItem('quip_brain_v3');
+    quipState={traits:{curiosity:0,warmth:0,wit:0,directness:0,depth:0,playfulness:0,melancholy:0,wisdom:0},learnedWords:[],wordFreq:{},totalMessages:0,totalVocab:0,birthTimestamp:Date.now(),recentContext:[],phase:'dormant'};
+    sessionHistory=[];
+    if(isOnline){
+      try{
+        await fbSet('brainV2', BRAIN_DOC, {
+          traits:quipState.traits,learnedWords:[],wordFreq:{},totalMessages:0,
+          totalVocab:0,birthTimestamp:Date.now(),recentContext:[],phase:'dormant',
+        });
+      }catch{}
     }
-    document.getElementById('messages').innerHTML = '';
+    document.getElementById('messages').innerHTML='';
     updateSidebar();
-    showToast('🧹 QUIP\'s brain wiped. Born again.');
-  }, 3000);
+    showToast('🧹 Brain wiped. Born again.');
+  },3000);
 }
-function cancelReset() { clearTimeout(resetTimer); }
+function cancelReset(){clearTimeout(resetTimer);}
 
-// ── INPUT HELPERS ──
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  document.getElementById('charCount').textContent = document.getElementById('userInput').value.length;
+function handleKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+  document.getElementById('charCount').textContent=document.getElementById('userInput').value.length;
 }
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  document.getElementById('charCount').textContent = el.value.length;
-}
-
-// ── VOICE ──
-let recognition = null, isListening = false;
-function toggleVoice() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { showToast('❌ Voice not supported in this browser'); return; }
-  if (isListening) { recognition?.stop(); return; }
-  recognition = new SR();
-  recognition.lang = 'en-US'; recognition.continuous = false; recognition.interimResults = true;
-  recognition.onstart = () => {
-    isListening = true;
-    document.getElementById('voiceBtn').classList.add('active');
-    document.getElementById('voiceBtnInline').classList.add('active');
-    document.getElementById('voiceStatus').textContent = '🎙 Listening…';
-  };
-  recognition.onresult = (e) => {
-    const t = Array.from(e.results).map(r=>r[0].transcript).join('');
-    document.getElementById('userInput').value = t;
-    autoResize(document.getElementById('userInput'));
-    if (e.results[e.results.length-1].isFinal) sendMessage();
-  };
-  recognition.onend = () => {
-    isListening = false;
-    document.getElementById('voiceBtn').classList.remove('active');
-    document.getElementById('voiceBtnInline').classList.remove('active');
-    document.getElementById('voiceStatus').textContent = 'Voice ready';
-  };
-  recognition.onerror = (e) => { showToast('⚠ Voice error: ' + e.error); isListening = false; };
-  recognition.start();
+function autoResize(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,120)+'px';
+  document.getElementById('charCount').textContent=el.value.length;
 }
 
-// ── TOAST ──
 let toastTimer;
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-// ── UTILITIES ──
-function hashStr(str) {
-  let h = 0;
-  for (let i=0; i<str.length; i++) h = Math.imul(31,h) + str.charCodeAt(i) | 0;
-  return Math.abs(h).toString(36).slice(0,8);
-}
-function generateId() { return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+window.addEventListener('online',()=>{if(db){showToast('🔥 Back online — syncing…');loadBrain();}});
+window.addEventListener('offline',()=>showToast('📴 Offline — local brain only'));
 
-// ── ONLINE/OFFLINE ──
-window.addEventListener('online', () => { if (db) { showToast('🔥 Back online — syncing…'); loadBrain(); } });
-window.addEventListener('offline', () => showToast('📴 Offline — local brain only'));
-
-// ── BOOT ──
-(function boot() {
-  loadBrainLocally();
-  updateSidebar();
-  connectFirebase();
-})();
+// Boot
+loadBrainLocally();
+updateSidebar();
+connectFirebase();
 </script>
 </body>
 </html>
