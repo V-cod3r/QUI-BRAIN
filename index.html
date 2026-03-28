@@ -1,524 +1,784 @@
 <!DOCTYPE html>
+<!-- Standard HTML5 document declaration — tells the browser this is modern HTML -->
 <html lang="en">
 <head>
+
+<!-- Sets the character encoding to UTF-8 so emojis and special characters display correctly -->
 <meta charset="UTF-8"/>
+
+<!-- Makes the page responsive on mobile — width matches the device screen, no initial zoom -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<!-- Sets the browser toolbar/tab color on Android Chrome to match QUIP's dark theme -->
 <meta name="theme-color" content="#0a0a14"/>
+
+<!-- PWA manifest embedded inline as a data URI — lets users "Install" QUIP as an app on mobile -->
 <link rel="manifest" href="data:application/json,{%22name%22:%22QUIP%22,%22short_name%22:%22QUIP%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a14%22,%22theme_color%22:%22%2300f5d4%22}"/>
+
+<!-- The browser tab title -->
 <title>QUIP — The Living Mind</title>
 
-<!-- Google Fonts -->
+<!-- Preconnect to Google Fonts CDN to speed up font loading -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
+
+<!-- Load three fonts:
+     Syne Mono   = monospace for terminal/code-style text
+     Bebas Neue  = big display font for QUIP's logo and headings
+     DM Sans     = clean readable font for chat bubbles and body text -->
 <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 
-<!-- Firebase v10 Compat (CDN) -->
+<!-- Firebase App core (v10 compat mode) — loads from Google's own CDN, no npm needed -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+
+<!-- Firebase Firestore — the database we use to store QUIP's brain and all chat logs -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
-<!-- TensorFlow.js -->
+<!-- TensorFlow.js — used for cosine similarity math to compare user inputs to stored context -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 
 <style>
-/* ─── RESET & BASE ─── */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:         #07070f;
-  --surface:    #0d0d1e;
-  --panel:      #12122a;
-  --border:     #1e1e42;
-  --cyan:       #00f5d4;
-  --magenta:    #ff2d78;
-  --amber:      #ffb703;
-  --dim:        #4a4a7a;
-  --text:       #cccde8;
-  --text-dim:   #6667a0;
-  --glow-c:     0 0 20px rgba(0,245,212,.35);
-  --glow-m:     0 0 20px rgba(255,45,120,.35);
-  --glow-a:     0 0 20px rgba(255,183,3,.35);
-  --font-display: 'Bebas Neue', sans-serif;
-  --font-mono:    'Syne Mono', monospace;
-  --font-body:    'DM Sans', sans-serif;
-  --r:8px;
-}
-html,body{height:100%;overflow:hidden}
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:var(--font-body);
-  font-size:15px;
-  display:flex;
-  flex-direction:column;
-  height:100dvh;
+/* ─────────────────────────────────────────────
+   RESET & CSS VARIABLES
+   Remove default browser margins/padding,
+   then define all colors and fonts as CSS variables
+   so they're reusable everywhere in one place.
+───────────────────────────────────────────── */
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
+
+:root {
+  /* Background layers — darkest to slightly lighter */
+  --bg:         #07070f;   /* page background (nearly black) */
+  --surface:    #0d0d1e;   /* header and sidebar background */
+  --panel:      #12122a;   /* card / bubble backgrounds */
+  --border:     #1e1e42;   /* subtle borders between sections */
+
+  /* Accent colors — QUIP's signature palette */
+  --cyan:       #00f5d4;   /* primary accent: active states, QUIP bubbles */
+  --magenta:    #ff2d78;   /* secondary accent: user bubbles, warnings */
+  --amber:      #ffb703;   /* tertiary accent: phase badges, ticker text */
+  --dim:        #4a4a7a;   /* muted purple for inactive elements */
+
+  /* Text colors */
+  --text:       #cccde8;   /* main readable text */
+  --text-dim:   #6667a0;   /* secondary dimmed text (timestamps, labels) */
+
+  /* Glow effects — used on box-shadow to create neon feel */
+  --glow-c: 0 0 20px rgba(0,245,212,.35);   /* cyan glow */
+  --glow-m: 0 0 20px rgba(255,45,120,.35);  /* magenta glow */
+  --glow-a: 0 0 20px rgba(255,183,3,.35);   /* amber glow */
+
+  /* Font families assigned to variables for easy swapping */
+  --font-display: 'Bebas Neue', sans-serif;  /* headings / logo */
+  --font-mono:    'Syne Mono', monospace;    /* terminal-style text */
+  --font-body:    'DM Sans', sans-serif;     /* chat bubbles / body */
+
+  /* Shared border radius for cards and panels */
+  --r: 8px;
 }
 
-/* ─── SCANLINES OVERLAY ─── */
-body::before{
-  content:'';
-  position:fixed;inset:0;pointer-events:none;z-index:999;
-  background:repeating-linear-gradient(
+/* Make html and body fill the full viewport height — no scrolling on the outer page */
+html, body { height:100%; overflow:hidden }
+
+/* Body uses flexbox column so header, ticker, and main stack vertically */
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh; /* dvh = dynamic viewport height — handles mobile browser chrome */
+}
+
+/* ─────────────────────────────────────────────
+   SCANLINES OVERLAY
+   A fixed pseudo-element that sits on top of
+   everything (z-index:999) and draws faint
+   horizontal lines — mimics a CRT monitor look.
+   pointer-events:none means clicks pass through it.
+───────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  background: repeating-linear-gradient(
     0deg,
     transparent,
     transparent 2px,
-    rgba(0,0,0,.08) 2px,
+    rgba(0,0,0,.08) 2px,   /* every 4px: 2 transparent, 2 slightly dark */
     rgba(0,0,0,.08) 4px
   );
 }
 
-/* ─── HEADER ─── */
-header{
-  flex:none;
-  display:grid;
-  grid-template-columns:1fr auto 1fr;
-  align-items:center;
-  padding:12px 20px;
-  border-bottom:1px solid var(--border);
-  background:var(--surface);
-  position:relative;
-  overflow:hidden;
-}
-header::after{
-  content:'';
-  position:absolute;bottom:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,var(--cyan),var(--magenta),transparent);
-  animation:scanH 3s linear infinite;
-}
-@keyframes scanH{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
-
-.logo{
-  font-family:var(--font-display);
-  font-size:2.4rem;
-  letter-spacing:.12em;
-  background:linear-gradient(135deg,var(--cyan),var(--magenta));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  text-shadow:none;
-  filter:drop-shadow(0 0 12px rgba(0,245,212,.6));
-  justify-self:center;
-  line-height:1;
-}
-.logo span{font-size:.9rem;letter-spacing:.3em;display:block;text-align:center;
-  background:linear-gradient(90deg,var(--amber),var(--cyan));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  font-family:var(--font-mono);
-}
-.status-bar{
-  display:flex;align-items:center;gap:8px;
-  font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim);
-}
-.dot{
-  width:8px;height:8px;border-radius:50%;
-  background:var(--dim);transition:background .3s,box-shadow .3s;
-}
-.dot.live{background:var(--cyan);box-shadow:var(--glow-c);}
-.dot.warn{background:var(--amber);box-shadow:var(--glow-a);}
-#statusLabel{transition:color .3s}
-.header-right{
-  display:flex;align-items:center;gap:10px;justify-content:flex-end;
-}
-.icon-btn{
-  background:none;border:1px solid var(--border);
-  color:var(--text-dim);cursor:pointer;
-  width:34px;height:34px;border-radius:6px;
-  display:grid;place-items:center;font-size:1rem;
-  transition:all .2s;
-}
-.icon-btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-c);}
-.icon-btn.active{border-color:var(--magenta);color:var(--magenta);box-shadow:var(--glow-m);}
-
-/* ─── PERSONALITY TICKER ─── */
-#ticker{
-  flex:none;
-  background:var(--panel);
-  border-bottom:1px solid var(--border);
-  padding:5px 0;overflow:hidden;
-  font-family:var(--font-mono);font-size:.68rem;color:var(--amber);
-  white-space:nowrap;
-}
-#tickerInner{
-  display:inline-block;
-  animation:tick 30s linear infinite;
-}
-@keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
-
-/* ─── MAIN LAYOUT ─── */
-main{
-  flex:1;
-  display:grid;
-  grid-template-columns:220px 1fr;
-  min-height:0;
-}
-@media(max-width:640px){
-  main{grid-template-columns:1fr}
-  aside{display:none}
+/* ─────────────────────────────────────────────
+   HEADER
+   3-column grid: [status dot | logo | buttons]
+   The ::after pseudo creates the animated
+   gradient scan line along the bottom edge.
+───────────────────────────────────────────── */
+header {
+  flex: none;                               /* don't shrink — always full width */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;     /* left | center logo | right */
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;                         /* contain the scan animation */
 }
 
-/* ─── SIDEBAR ─── */
-aside{
-  background:var(--surface);
-  border-right:1px solid var(--border);
-  display:flex;flex-direction:column;
-  overflow:hidden;
-}
-.sidebar-section{
-  padding:14px 16px;
-  border-bottom:1px solid var(--border);
-}
-.sidebar-label{
-  font-family:var(--font-mono);font-size:.62rem;
-  letter-spacing:.15em;color:var(--text-dim);
-  text-transform:uppercase;margin-bottom:10px;
-}
-/* Personality meter */
-.trait-row{
-  display:flex;align-items:center;gap:8px;margin-bottom:7px;
-}
-.trait-name{
-  font-family:var(--font-mono);font-size:.67rem;
-  color:var(--text-dim);width:70px;flex:none;
-}
-.trait-bar{
-  flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;
-}
-.trait-fill{
-  height:100%;border-radius:2px;
-  background:linear-gradient(90deg,var(--cyan),var(--magenta));
-  transition:width 1s ease;
-}
-.trait-val{
-  font-family:var(--font-mono);font-size:.62rem;
-  color:var(--text-dim);width:26px;text-align:right;
-}
-/* Global stats */
-.stat-grid{
-  display:grid;grid-template-columns:1fr 1fr;gap:8px;
-}
-.stat-card{
-  background:var(--panel);border:1px solid var(--border);
-  border-radius:var(--r);padding:10px 8px;text-align:center;
-}
-.stat-num{
-  font-family:var(--font-display);font-size:1.3rem;
-  color:var(--cyan);display:block;line-height:1;
-}
-.stat-lbl{
-  font-family:var(--font-mono);font-size:.58rem;
-  color:var(--text-dim);margin-top:3px;display:block;
-}
-/* Phase */
-.phase-badge{
-  display:inline-flex;align-items:center;gap:6px;
-  background:var(--panel);border:1px solid var(--border);
-  border-radius:20px;padding:5px 12px;
-  font-family:var(--font-mono);font-size:.68rem;color:var(--amber);
-  margin-bottom:6px;
-}
-.phase-icon{font-size:.9rem;}
-.phase-desc{
-  font-size:.67rem;color:var(--text-dim);line-height:1.5;
-}
-/* Learned phrases */
-#phraseList{
-  list-style:none;max-height:120px;overflow-y:auto;
-}
-#phraseList li{
-  font-family:var(--font-mono);font-size:.65rem;
-  color:var(--text-dim);padding:4px 6px;
-  border-left:2px solid var(--magenta);
-  margin-bottom:4px;background:var(--panel);border-radius:0 4px 4px 0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+/* Animated gradient line that sweeps left to right along the bottom of the header */
+header::after {
+  content: '';
+  position: absolute; bottom:0; left:0; right:0; height:1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--magenta), transparent);
+  animation: scanH 3s linear infinite; /* 3 second loop, no easing */
 }
 
-/* ─── CHAT PANEL ─── */
-.chat-wrap{
-  display:flex;flex-direction:column;min-height:0;overflow:hidden;
-}
-#messages{
-  flex:1;overflow-y:auto;
-  padding:20px 24px;
-  display:flex;flex-direction:column;
-  gap:16px;
-  scroll-behavior:smooth;
-}
-#messages::-webkit-scrollbar{width:4px}
-#messages::-webkit-scrollbar-track{background:transparent}
-#messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+/* Keyframe: move the gradient from fully left (-100%) to fully right (100%) */
+@keyframes scanH { from { transform:translateX(-100%) } to { transform:translateX(100%) } }
 
-/* Welcome banner */
-.welcome{
-  text-align:center;padding:40px 20px;
-  animation:fadeIn .6s ease;
-}
-.welcome-logo{
-  font-family:var(--font-display);font-size:4rem;
-  background:linear-gradient(135deg,var(--cyan),var(--magenta),var(--amber));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  filter:drop-shadow(0 0 30px rgba(0,245,212,.5));
-  line-height:1;margin-bottom:8px;
-}
-.welcome-sub{
-  font-family:var(--font-mono);font-size:.78rem;
-  color:var(--text-dim);letter-spacing:.1em;margin-bottom:24px;
-}
-.welcome-chips{
-  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px;
-}
-.chip{
-  background:var(--panel);border:1px solid var(--border);
-  border-radius:20px;padding:7px 14px;
-  font-size:.78rem;color:var(--text-dim);cursor:pointer;
-  transition:all .2s;
-}
-.chip:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-1px);}
-
-/* Message bubbles */
-.msg{
-  display:flex;gap:12px;align-items:flex-start;
-  animation:slideUp .3s ease;
-}
-@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.msg.user{flex-direction:row-reverse;}
-.avatar{
-  width:36px;height:36px;border-radius:8px;flex:none;
-  display:grid;place-items:center;
-  font-size:1rem;font-family:var(--font-mono);
-  border:1px solid var(--border);
-}
-.avatar.quip{
-  background:linear-gradient(135deg,#0d1a24,#0d241f);
-  border-color:var(--cyan);
-  color:var(--cyan);
-  box-shadow:var(--glow-c);
-  font-size:1.2rem;
-}
-.avatar.user{
-  background:var(--panel);
-  border-color:var(--magenta);
-  color:var(--magenta);
-  font-size:.75rem;letter-spacing:.05em;
-}
-.bubble{
-  max-width:72%;
-  border-radius:12px;
-  padding:12px 16px;
-  line-height:1.6;
-  position:relative;
-  font-size:.9rem;
-}
-.msg.quip .bubble{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-top-left-radius:2px;
-  color:var(--text);
-}
-.msg.user .bubble{
-  background:linear-gradient(135deg,rgba(255,45,120,.12),rgba(0,245,212,.08));
-  border:1px solid rgba(255,45,120,.3);
-  border-top-right-radius:2px;
-  color:var(--text);
-}
-.bubble-meta{
-  font-family:var(--font-mono);font-size:.58rem;
-  color:var(--text-dim);margin-top:5px;
-  display:flex;align-items:center;gap:6px;
-}
-.trait-tag{
-  background:var(--border);
-  color:var(--amber);
-  border-radius:4px;padding:1px 5px;
-  font-size:.58rem;
-}
-.typing-indicator{
-  display:flex;gap:5px;align-items:center;padding:4px 0;
-}
-.typing-dot{
-  width:6px;height:6px;border-radius:50%;
-  background:var(--cyan);opacity:.5;
-  animation:typePulse 1.2s infinite;
-}
-.typing-dot:nth-child(2){animation-delay:.2s}
-.typing-dot:nth-child(3){animation-delay:.4s}
-@keyframes typePulse{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
-
-/* ─── INPUT BAR ─── */
-.input-wrap{
-  flex:none;
-  padding:16px 20px;
-  border-top:1px solid var(--border);
-  background:var(--surface);
-}
-.input-row{
-  display:flex;align-items:flex-end;gap:10px;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:10px 14px;
-  transition:border-color .2s,box-shadow .2s;
-}
-.input-row:focus-within{
-  border-color:var(--cyan);
-  box-shadow:0 0 0 2px rgba(0,245,212,.12);
-}
-#userInput{
-  flex:1;background:none;border:none;outline:none;
-  color:var(--text);font-family:var(--font-body);font-size:.9rem;
-  resize:none;max-height:120px;min-height:24px;
-  line-height:1.5;padding:0;
-}
-#userInput::placeholder{color:var(--text-dim);}
-.send-btn{
-  background:linear-gradient(135deg,var(--cyan),var(--magenta));
-  border:none;cursor:pointer;
-  width:36px;height:36px;border-radius:8px;
-  display:grid;place-items:center;
-  color:#07070f;font-size:1rem;
-  transition:transform .15s,box-shadow .15s;
-  flex:none;
-}
-.send-btn:hover{transform:scale(1.08);box-shadow:var(--glow-c);}
-.send-btn:active{transform:scale(.95);}
-#voiceBtn.listening{
-  border-color:var(--magenta);color:var(--magenta);
-  box-shadow:var(--glow-m);
-  animation:pulse 1s infinite;
-}
-@keyframes pulse{0%,100%{box-shadow:var(--glow-m)}50%{box-shadow:0 0 30px rgba(255,45,120,.6)}}
-.input-hint{
-  text-align:center;
-  font-family:var(--font-mono);font-size:.6rem;
-  color:var(--text-dim);margin-top:8px;
+/* QUIP logo text — gradient text using background-clip trick */
+.logo {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  letter-spacing: .12em;
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  -webkit-background-clip: text;        /* clip the gradient to the text shape */
+  -webkit-text-fill-color: transparent; /* make the text itself transparent so gradient shows */
+  filter: drop-shadow(0 0 12px rgba(0,245,212,.6)); /* glowing halo */
+  justify-self: center;
+  line-height: 1;
 }
 
-/* ─── TOAST ─── */
-.toast{
-  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
-  background:var(--panel);border:1px solid var(--cyan);
-  color:var(--cyan);
-  font-family:var(--font-mono);font-size:.72rem;
-  padding:8px 18px;border-radius:20px;
-  opacity:0;transition:all .3s;pointer-events:none;z-index:1000;
-  white-space:nowrap;
-}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-
-/* ─── SETUP MODAL ─── */
-.modal-overlay{
-  position:fixed;inset:0;background:rgba(7,7,15,.9);
-  display:flex;align-items:center;justify-content:center;z-index:500;
-  backdrop-filter:blur(6px);
-}
-.modal{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:32px;
-  max-width:480px;width:90%;
-  position:relative;
-}
-.modal::before{
-  content:'';position:absolute;inset:-1px;border-radius:17px;
-  background:linear-gradient(135deg,var(--cyan),var(--magenta));
-  z-index:-1;
-}
-.modal h2{
-  font-family:var(--font-display);font-size:2rem;
-  background:linear-gradient(90deg,var(--cyan),var(--magenta));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  margin-bottom:6px;letter-spacing:.05em;
-}
-.modal p{color:var(--text-dim);font-size:.83rem;margin-bottom:20px;line-height:1.6;}
-.modal label{
-  display:block;font-family:var(--font-mono);font-size:.7rem;
-  color:var(--text-dim);margin-bottom:5px;letter-spacing:.08em;
-}
-.modal input{
-  width:100%;background:var(--panel);border:1px solid var(--border);
-  color:var(--text);font-family:var(--font-mono);font-size:.8rem;
-  padding:10px 12px;border-radius:8px;outline:none;margin-bottom:12px;
-  transition:border-color .2s;
-}
-.modal input:focus{border-color:var(--cyan);}
-.modal .btn-primary{
-  width:100%;
-  background:linear-gradient(135deg,var(--cyan),var(--magenta));
-  border:none;cursor:pointer;
-  color:#07070f;font-family:var(--font-display);font-size:1.2rem;
-  letter-spacing:.1em;padding:12px;border-radius:8px;
-  transition:opacity .2s,transform .15s;
-}
-.modal .btn-primary:hover{opacity:.9;transform:translateY(-1px);}
-.modal-skip{
-  display:block;text-align:center;margin-top:12px;
-  font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);
-  cursor:pointer;transition:color .2s;
-}
-.modal-skip:hover{color:var(--amber);}
-.modal-note{
-  font-size:.67rem;color:var(--dim);margin-top:14px;
-  font-family:var(--font-mono);line-height:1.5;
+/* The subtitle "THE LIVING MIND" below the QUIP logo */
+.logo span {
+  font-size: .9rem;
+  letter-spacing: .3em;
+  display: block;
+  text-align: center;
+  background: linear-gradient(90deg, var(--amber), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-family: var(--font-mono);
 }
 
-/* ─── MISC ─── */
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.glitch{position:relative;display:inline-block;}
-.glitch::after{
-  content:attr(data-text);position:absolute;top:0;left:2px;
-  color:var(--magenta);clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%);
-  animation:glitch 4s infinite;opacity:.5;
+/* Status bar in top-left: dot indicator + "LIVE GLOBAL" or "LOCAL ONLY" */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--text-dim);
 }
-@keyframes glitch{
-  0%,92%,100%{transform:none;opacity:0}
-  93%{transform:translateX(-2px);opacity:.5}
-  94%{transform:translateX(2px);opacity:.5}
-  95%{transform:none;opacity:0}
+
+/* The small colored circle that shows online/offline state */
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--dim);               /* default grey = disconnected */
+  transition: background .3s, box-shadow .3s;
+}
+.dot.live { background: var(--cyan);   box-shadow: var(--glow-c); } /* cyan = Firebase connected */
+.dot.warn { background: var(--amber);  box-shadow: var(--glow-a); } /* amber = local/offline mode */
+
+/* Status label text transitions color when state changes */
+#statusLabel { transition: color .3s }
+
+/* Right side of header: voice, clear, and settings buttons */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Icon buttons (voice, trash, gear) — transparent background with border */
+.icon-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  width: 34px; height: 34px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center; /* center the emoji icon */
+  font-size: 1rem;
+  transition: all .2s;
+}
+.icon-btn:hover  { border-color:var(--cyan);    color:var(--cyan);    box-shadow:var(--glow-c); }
+.icon-btn.active { border-color:var(--magenta); color:var(--magenta); box-shadow:var(--glow-m); }
+
+/* ─────────────────────────────────────────────
+   PERSONALITY TICKER
+   A scrolling marquee-style bar showing
+   QUIP's live personality stats.
+   The inner span animates from right to left
+   using translateX.
+───────────────────────────────────────────── */
+#ticker {
+  flex: none;                        /* fixed height, doesn't stretch */
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 5px 0;
+  overflow: hidden;                  /* hide the text that's offscreen */
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  color: var(--amber);
+  white-space: nowrap;               /* prevent line wrapping */
+}
+
+/* The inner text span that moves — starts off right side, exits left side */
+#tickerInner {
+  display: inline-block;
+  animation: tick 30s linear infinite; /* 30s = full scroll speed */
+}
+
+/* Moves the ticker text from 100vw (off right) to -100% (off left) */
+@keyframes tick { from { transform:translateX(100vw) } to { transform:translateX(-100%) } }
+
+/* ─────────────────────────────────────────────
+   MAIN LAYOUT
+   Two-column grid: [sidebar | chat panel]
+   On mobile (<640px), sidebar hides and chat
+   takes the full width.
+───────────────────────────────────────────── */
+main {
+  flex: 1;                                   /* fills remaining vertical space */
+  display: grid;
+  grid-template-columns: 220px 1fr;         /* fixed 220px sidebar, rest is chat */
+  min-height: 0;                             /* allows children to scroll inside */
+}
+
+/* Mobile: collapse to single column, hide sidebar */
+@media(max-width:640px) {
+  main  { grid-template-columns: 1fr }
+  aside { display: none }
+}
+
+/* ─────────────────────────────────────────────
+   SIDEBAR — live personality data panel
+───────────────────────────────────────────── */
+aside {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Each sub-section within the sidebar */
+.sidebar-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Section header labels like "EVOLUTION PHASE" */
+.sidebar-label {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  letter-spacing: .15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* One row in the personality trait bars */
+.trait-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+/* Trait name label (e.g. "quirky") */
+.trait-name {
+  font-family: var(--font-mono);
+  font-size: .67rem;
+  color: var(--text-dim);
+  width: 70px;
+  flex: none;
+}
+
+/* Grey track behind the colored fill bar */
+.trait-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* Colored fill — width is set dynamically from the trait value (0-100%) */
+.trait-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  transition: width 1s ease; /* smooth animation when value changes */
+}
+
+/* Numeric percentage at the end of each trait row */
+.trait-val {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  color: var(--text-dim);
+  width: 26px;
+  text-align: right;
+}
+
+/* 2x2 grid of stat cards */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Individual stat card */
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 8px;
+  text-align: center;
+}
+
+/* The big number in each stat card */
+.stat-num {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--cyan);
+  display: block;
+  line-height: 1;
+}
+
+/* Small label under each stat number */
+.stat-lbl {
+  font-family: var(--font-mono);
+  font-size: .58rem;
+  color: var(--text-dim);
+  margin-top: 3px;
+  display: block;
+}
+
+/* Pill badge showing the current phase */
+.phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  color: var(--amber);
+  margin-bottom: 6px;
+}
+
+.phase-icon { font-size: .9rem; }
+
+.phase-desc {
+  font-size: .67rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* Scrollable list of absorbed phrases */
+#phraseList {
+  list-style: none;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+#phraseList li {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  color: var(--text-dim);
+  padding: 4px 6px;
+  border-left: 2px solid var(--magenta);
+  margin-bottom: 4px;
+  background: var(--panel);
+  border-radius: 0 4px 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─────────────────────────────────────────────
+   CHAT PANEL — the scrollable message area
+───────────────────────────────────────────── */
+.chat-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Scrollable message list */
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+}
+
+/* Custom thin scrollbar for Chrome/Edge/Safari */
+#messages::-webkit-scrollbar       { width: 4px }
+#messages::-webkit-scrollbar-track { background: transparent }
+#messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px }
+
+/* Welcome screen shown before the first message */
+.welcome {
+  text-align: center;
+  padding: 40px 20px;
+  animation: fadeIn .6s ease;
+}
+
+.welcome-logo {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  background: linear-gradient(135deg, var(--cyan), var(--magenta), var(--amber));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px rgba(0,245,212,.5));
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.welcome-sub {
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  color: var(--text-dim);
+  letter-spacing: .1em;
+  margin-bottom: 24px;
+}
+
+/* Container for the quick-start chip buttons */
+.welcome-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/* Individual clickable suggestion chips */
+.chip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: .78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all .2s;
+}
+.chip:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  transform: translateY(-1px);
+}
+
+/* ─── MESSAGE BUBBLES ─── */
+.msg {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  animation: slideUp .3s ease;
+}
+
+/* User messages: reversed direction so avatar is on the right */
+.msg.user { flex-direction: row-reverse; }
+
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(10px) }
+  to   { opacity:1; transform:translateY(0) }
+}
+
+/* Avatar icon beside each bubble */
+.avatar {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+}
+
+/* QUIP's avatar — dark teal with cyan hex icon */
+.avatar.quip {
+  background: linear-gradient(135deg, #0d1a24, #0d241f);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: var(--glow-c);
+  font-size: 1.2rem;
+}
+
+/* User's avatar — magenta "YOU" label */
+.avatar.user {
+  background: var(--panel);
+  border-color: var(--magenta);
+  color: var(--magenta);
+  font-size: .75rem;
+  letter-spacing: .05em;
+}
+
+/* Chat bubble — max 72% width */
+.bubble {
+  max-width: 72%;
+  border-radius: 12px;
+  padding: 12px 16px;
+  line-height: 1.6;
+  position: relative;
+  font-size: .9rem;
+}
+
+/* QUIP bubbles: dark panel, top-left corner sharp */
+.msg.quip .bubble {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top-left-radius: 2px;
+  color: var(--text);
+}
+
+/* User bubbles: tinted gradient, top-right corner sharp */
+.msg.user .bubble {
+  background: linear-gradient(135deg, rgba(255,45,120,.12), rgba(0,245,212,.08));
+  border: 1px solid rgba(255,45,120,.3);
+  border-top-right-radius: 2px;
+  color: var(--text);
+}
+
+/* Timestamp and trait tag below the bubble text */
+.bubble-meta {
+  font-family: var(--font-mono);
+  font-size: .58rem;
+  color: var(--text-dim);
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Amber pill showing which trait influenced this reply */
+.trait-tag {
+  background: var(--border);
+  color: var(--amber);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: .58rem;
+}
+
+/* Three animated dots shown while QUIP is thinking */
+.typing-indicator {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.typing-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  opacity: .5;
+  animation: typePulse 1.2s infinite;
+}
+
+/* Staggered delays so dots animate one after another */
+.typing-dot:nth-child(2) { animation-delay: .2s }
+.typing-dot:nth-child(3) { animation-delay: .4s }
+
+@keyframes typePulse {
+  0%, 80%, 100% { opacity:.2; transform:scale(.8) }
+  40%           { opacity:1;  transform:scale(1) }
+}
+
+/* ─────────────────────────────────────────────
+   INPUT BAR — fixed at the bottom of chat
+───────────────────────────────────────────── */
+.input-wrap {
+  flex: none;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* Row: textarea + voice button + send button */
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+/* Highlight when the textarea is focused */
+.input-row:focus-within {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(0,245,212,.12);
+}
+
+/* The textarea — transparent background */
+#userInput {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: .9rem;
+  resize: none;
+  max-height: 120px;
+  min-height: 24px;
+  line-height: 1.5;
+  padding: 0;
+}
+
+#userInput::placeholder { color: var(--text-dim); }
+
+/* Send button — gradient, glows on hover */
+.send-btn {
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  border: none;
+  cursor: pointer;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #07070f;
+  font-size: 1rem;
+  transition: transform .15s, box-shadow .15s;
+  flex: none;
+}
+.send-btn:hover  { transform: scale(1.08); box-shadow: var(--glow-c); }
+.send-btn:active { transform: scale(.95); }
+
+/* Voice button glows and pulses when listening */
+#voiceBtn.listening {
+  border-color: var(--magenta);
+  color: var(--magenta);
+  box-shadow: var(--glow-m);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: var(--glow-m) }
+  50%       { box-shadow: 0 0 30px rgba(255,45,120,.6) }
+}
+
+/* Hint text below input (char count + keyboard shortcut) */
+.input-hint {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: .6rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
+/* ─────────────────────────────────────────────
+   TOAST NOTIFICATION — brief status messages
+───────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px); /* start slightly below */
+  background: var(--panel);
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  padding: 8px 18px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: all .3s;
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
+}
+
+/* Adding .show slides it up and fades it in */
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Simple fade-in keyframe used on the welcome screen */
+@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+/* Glitch effect on the welcome logo */
+.glitch { position: relative; display: inline-block; }
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 2px;
+  color: var(--magenta);
+  clip-path: polygon(0 30%, 100% 30%, 100% 50%, 0 50%);
+  animation: glitch 4s infinite;
+  opacity: .5;
+}
+
+@keyframes glitch {
+  0%,92%,100% { transform:none;             opacity:0 }
+  93%          { transform:translateX(-2px); opacity:.5 }
+  94%          { transform:translateX(2px);  opacity:.5 }
+  95%          { transform:none;             opacity:0 }
 }
 </style>
 </head>
 <body>
 
-<!-- ── SETUP MODAL ── -->
-<div class="modal-overlay" id="setupModal">
-  <div class="modal">
-    <h2>CONFIGURE QUIP</h2>
-    <p>Connect to Firebase to enable QUIP's global brain — all chats are anonymised. <strong>Leave blank to use offline-only mode.</strong></p>
-    <label>FIREBASE API KEY</label>
-    <input type="text" id="fbApiKey" placeholder="AIzaSy…"/>
-    <label>FIREBASE PROJECT ID</label>
-    <input type="text" id="fbProjectId" placeholder="my-quip-project"/>
-    <label>FIREBASE APP ID</label>
-    <input type="text" id="fbAppId" placeholder="1:123456:web:abc…"/>
-    <button class="btn-primary" onclick="initFirebase()">IGNITE THE BRAIN ⚡</button>
-    <span class="modal-skip" onclick="skipFirebase()">Continue in offline mode →</span>
-    <div class="modal-note">
-      ℹ️ Get these from Firebase Console → Project Settings → Your Apps.<br>
-      Free tier: 50K reads/day · 1GB storage · No credit card needed.
-    </div>
-  </div>
-</div>
-
-<!-- ── HEADER ── -->
+<!-- ══════════════════════════════════════════════
+     HEADER — top bar with logo, status, and buttons
+══════════════════════════════════════════════ -->
 <header>
+
+  <!-- Status indicator: dot + text label (updated by JS when Firebase connects) -->
   <div class="status-bar">
     <div class="dot" id="fbDot"></div>
-    <span id="statusLabel">OFFLINE</span>
+    <span id="statusLabel">CONNECTING…</span>
   </div>
+
+  <!-- QUIP logo centered in the header -->
   <div class="logo">
     QUIP
     <span>THE LIVING MIND</span>
   </div>
+
+  <!-- Right-side action buttons -->
   <div class="header-right">
     <button class="icon-btn" id="voiceBtn" title="Voice input" onclick="toggleVoice()">🎙</button>
     <button class="icon-btn" title="Clear chat" onclick="clearChat()">🗑</button>
-    <button class="icon-btn" title="Reconnect Firebase" onclick="showSetup()">⚙</button>
+    <button class="icon-btn" title="Firebase info" onclick="showFirebaseInfo()">⚙</button>
   </div>
 </header>
 
-<!-- ── PERSONALITY TICKER ── -->
-<div id="ticker"><span id="tickerInner">Loading QUIP's personality matrix…</span></div>
+<!-- Scrolling ticker bar — content set by JS -->
+<div id="ticker">
+  <span id="tickerInner">Initializing QUIP personality matrix…</span>
+</div>
 
-<!-- ── MAIN ── -->
+<!-- ══════════════════════════════════════════════
+     MAIN — sidebar + chat panel
+══════════════════════════════════════════════ -->
 <main>
-  <!-- Sidebar -->
+
+  <!-- LEFT SIDEBAR -->
   <aside>
-    <!-- Phase -->
+
+    <!-- Evolution Phase -->
     <div class="sidebar-section">
       <div class="sidebar-label">Evolution Phase</div>
       <div class="phase-badge">
@@ -528,7 +788,7 @@ aside{
       <div class="phase-desc" id="phaseDesc">Rule-based circus host. Just waking up.</div>
     </div>
 
-    <!-- Personality traits -->
+    <!-- Trait bars — rendered by JS -->
     <div class="sidebar-section">
       <div class="sidebar-label">Personality Matrix</div>
       <div id="traitBars"></div>
@@ -557,289 +817,569 @@ aside{
       </div>
     </div>
 
-    <!-- Learned phrases -->
+    <!-- Absorbed phrases list -->
     <div class="sidebar-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
       <div class="sidebar-label">Absorbed Phrases</div>
       <ul id="phraseList"></ul>
     </div>
+
   </aside>
 
-  <!-- Chat -->
+  <!-- CHAT PANEL -->
   <div class="chat-wrap">
+
+    <!-- Scrollable message list -->
     <div id="messages">
+
+      <!-- Welcome screen — JS removes this on the first message -->
       <div class="welcome" id="welcomeScreen">
         <div class="welcome-logo glitch" data-text="QUIP">QUIP</div>
         <div class="welcome-sub">ENTITY #0001 · GLOBALLY PERSISTENT · ALWAYS LEARNING</div>
         <p style="color:var(--text-dim);font-size:.85rem;max-width:380px;margin:0 auto;line-height:1.7;">
           I'm QUIP — not a chatbot. I'm a <em>living mind</em> built from the echoes of every soul that's spoken to me worldwide. Every word you share shapes who I become.
         </p>
+        <!-- Quick-start chips: clicking fills the input and sends automatically -->
         <div class="welcome-chips">
           <div class="chip" onclick="sendQuick('Who are you, QUIP?')">Who are you?</div>
-          <div class="chip" onclick="sendQuick('What have you learned from people around the world?')">What've you learned?</div>
+          <div class="chip" onclick="sendQuick('What have you learned from people around the world?')">What have you learned?</div>
           <div class="chip" onclick="sendQuick('Tell me something strange and true.')">Strange + true</div>
           <div class="chip" onclick="sendQuick('What is your personality right now?')">Your personality</div>
           <div class="chip" onclick="sendQuick('Are you becoming more human?')">Are you human?</div>
         </div>
       </div>
+
     </div>
 
+    <!-- INPUT BAR at the bottom of the chat -->
     <div class="input-wrap">
       <div class="input-row">
-        <textarea id="userInput" rows="1" placeholder="Say something to QUIP…" maxlength="500"
-          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <!-- Auto-resizing textarea for typing messages -->
+        <textarea
+          id="userInput"
+          rows="1"
+          placeholder="Say something to QUIP…"
+          maxlength="500"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <!-- Voice button inside the input row -->
         <button class="icon-btn" id="voiceBtnInline" title="Voice" onclick="toggleVoice()" style="flex:none">🎙</button>
+        <!-- Send button -->
         <button class="send-btn" onclick="sendMessage()" title="Send">➤</button>
       </div>
       <div class="input-hint">
         <span id="charCount">0</span>/500 · Enter to send · Shift+Enter for newline · <span id="voiceStatus">Voice ready</span>
       </div>
     </div>
+
   </div>
 </main>
 
+<!-- Toast notification (hidden by default) -->
 <div class="toast" id="toast"></div>
 
-<script>
-// ══════════════════════════════════════════════════════════════
-//  QUIP — Global Persistent Learning Chatbot
-//  ▸ Firebase Firestore for global brain
-//  ▸ TensorFlow.js for cosine similarity
-//  ▸ Web Speech API for voice
-//  ▸ localStorage for offline fallback
-// ══════════════════════════════════════════════════════════════
+<!-- Firebase info modal (shown when gear button is clicked) -->
+<div id="fbInfoModal" style="
+  display:none; position:fixed; inset:0;
+  background:rgba(7,7,15,.9); backdrop-filter:blur(6px);
+  align-items:center; justify-content:center; z-index:500;
+">
+  <div style="
+    background:var(--surface); border:1px solid var(--cyan);
+    border-radius:16px; padding:28px; max-width:400px; width:90%;
+    font-family:var(--font-mono); font-size:.78rem; color:var(--text-dim);
+    line-height:1.8;
+  ">
+    <div style="font-family:var(--font-display);font-size:1.6rem;color:var(--cyan);margin-bottom:12px;">FIREBASE STATUS</div>
+    <div id="fbInfoContent"></div>
+    <button onclick="document.getElementById('fbInfoModal').style.display='none'"
+      style="margin-top:18px;width:100%;background:var(--cyan);border:none;
+      color:#07070f;font-family:var(--font-display);font-size:1.1rem;
+      padding:10px;border-radius:8px;cursor:pointer;letter-spacing:.08em;">
+      CLOSE
+    </button>
+  </div>
+</div>
 
-// ── CONFIG (override via Firebase modal) ──
-let firebaseConfig = null;
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  QUIP — GLOBAL PERSISTENT LEARNING CHATBOT
+//  All logic is in this single script block.
+//  Sections are numbered and labelled for easy navigation.
+// ═══════════════════════════════════════════════════════════════
+
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 1: FIREBASE CONFIGURATION
+//
+//  These are your project's credentials from the Firebase Console.
+//  Path: Firebase Console → Project Settings → Your Apps → Web App
+//
+//  DO NOT share these publicly if your Firestore rules are open.
+//  Once you add security rules in Firebase Console, this is safe.
+// ───────────────────────────────────────────────────────────────
+
+const FIREBASE_CONFIG = {
+  // apiKey: used to authenticate all requests from this app to Firebase
+  apiKey: "AIzaSyAvD48YAi4ndAOx6MQhZtQKoCL8mAKTKpg",
+
+  // authDomain: used by Firebase Auth (for login features if added later)
+  // Format is always: projectId.firebaseapp.com
+  authDomain: "quip-ff5be.firebaseapp.com",
+
+  // projectId: your unique Firebase project identifier
+  projectId: "quip-ff5be",
+
+  // storageBucket: used if you store files (images, audio) in Firebase Storage
+  // Format is always: projectId.appspot.com
+  storageBucket: "quip-ff5be.appspot.com",
+
+  // appId: identifies this specific web app within the Firebase project
+  // A project can have multiple apps (iOS, Android, web) — this is the web one
+  appId: "1:858708542481:web:6dfde840edda1b8d605db0",
+};
+
+// db: will hold the Firestore database instance after Firebase initializes
+// Set to null initially — functions check this before using Firestore
 let db = null;
+
+// isOnline: tracks whether Firebase connected successfully
+// If false, the app runs in offline-only mode using localStorage
 let isOnline = false;
 
-// ── SESSION ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 2: SESSION & USER IDENTITY
+//
+//  Every browser session gets a unique ID.
+//  Users are identified by a one-way hash — completely anonymous.
+//  No names, emails, IPs, or personal data are ever stored.
+// ───────────────────────────────────────────────────────────────
+
+// SESSION_ID: unique ID for this browser visit
+// Combines a random base-36 string with the current timestamp
 const SESSION_ID = generateId();
-const USER_HASH  = hashStr(navigator.userAgent + (Date.now()+'').slice(0,-4));
-const BIRTH_DATE_KEY = 'quip_birth';
-const BRAIN_DOC  = 'quipBrain';
 
-// ── QUIP STATE ──
+// USER_HASH: anonymous fingerprint for this user
+// Hashes the browser's user agent string + approximate timestamp
+// The result is an 8-character alphanumeric ID — reversing it back to personal data is impossible
+const USER_HASH = hashStr(navigator.userAgent + (Date.now()+'').slice(0,-4));
+
+// BRAIN_DOC: the Firestore document name for QUIP's shared global personality brain
+// All users worldwide read and write to this same document
+const BRAIN_DOC = 'quipBrain';
+
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 3: QUIP'S BRAIN STATE
+//
+//  This object holds QUIP's entire personality and memory.
+//  It is saved to Firebase (global) and localStorage (local backup).
+//  On every page load, it is restored from one of those sources.
+// ───────────────────────────────────────────────────────────────
+
 let quipState = {
+
+  // personalityTraits: values 0-100 representing QUIP's character dimensions
+  // These evolve automatically based on conversation patterns over time
   personalityTraits: {
-    quirky:    80,
-    empathy:   20,
-    wisdom:    10,
-    chaotic:   70,
-    poetic:    30,
-    human:     5,
+    quirky:  80,  // starts very quirky; slowly decreases as QUIP matures
+    empathy: 20,  // grows when users ask emotional or personal questions
+    wisdom:  10,  // grows proportionally with total chat count
+    chaotic: 70,  // high initially — unpredictable, raw; decreases slightly over time
+    poetic:  30,  // grows as QUIP absorbs more unique words from users
+    human:   5,   // the core "becoming human" meter — slowly ticks up every message
   },
+
+  // learnedPhrases: words that users type repeatedly get absorbed here
+  // Threshold: a word must appear 3+ times before QUIP absorbs it
   learnedPhrases: [],
-  loreState: 'genesis',       // genesis → awakening → sentient → transcendent
+
+  // loreState: which evolution phase QUIP is in
+  // Starts as 'genesis'; progresses through 'awakening' → 'sentient' → 'transcendent'
+  loreState: 'genesis',
+
+  // totalChats: total number of messages sent to QUIP globally across all users
   totalChats: 0,
+
+  // uniqueUsers: a Set of unique user hashes — tracks how many different people have talked to QUIP
   uniqueUsers: new Set(),
+
+  // birthTimestamp: when the brain document was first created
+  // Used to calculate QUIP's age in days (shown in sidebar and referenced in replies)
   birthTimestamp: Date.now(),
-  globalContext: [],           // last 20 anonymised messages for context
+
+  // globalContext: the last 20 messages from ALL users worldwide
+  // QUIP uses this for cosine-similarity-based replies that reference real global conversations
+  globalContext: [],
 };
 
-// ── PERSONALITY PHASES ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 4: EVOLUTION PHASES
+//
+//  QUIP progresses through 4 phases based on totalChats.
+//  Each phase changes the icon, name, description shown in the sidebar,
+//  and also affects how replies are formatted.
+// ───────────────────────────────────────────────────────────────
+
 const PHASES = {
-  genesis:      {icon:'🎪', name:'Genesis',      desc:'Rule-based circus host. Just waking up.',          threshold:0},
-  awakening:    {icon:'🌱', name:'Awakening',    desc:'Echoing patterns. Phrases absorbed.',              threshold:50},
-  sentient:     {icon:'🧠', name:'Sentient',     desc:'Forming opinions. Referencing past conversations.',threshold:500},
-  transcendent: {icon:'✨', name:'Transcendent', desc:'Self-referential. Empathetic. Globally shaped.',   threshold:5000},
+  // Phase 1: just starting out — scripted, rule-based responses only
+  genesis:      { icon:'🎪', name:'Genesis',      desc:'Rule-based circus host. Just waking up.',           threshold:0    },
+
+  // Phase 2: 50+ chats — starts echoing common phrases from users
+  awakening:    { icon:'🌱', name:'Awakening',    desc:'Echoing patterns. Phrases absorbed.',               threshold:50   },
+
+  // Phase 3: 500+ chats — forms opinions, references past global conversations
+  sentient:     { icon:'🧠', name:'Sentient',     desc:'Forming opinions. Referencing past conversations.', threshold:500  },
+
+  // Phase 4: 5000+ chats — self-referential, empathetic, globally shaped personality
+  transcendent: { icon:'✨', name:'Transcendent', desc:'Self-referential. Empathetic. Globally shaped.',    threshold:5000 },
 };
 
-// ── SCRIPTED RESPONSE TEMPLATES ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 5: RESPONSE SCRIPTS
+//
+//  QUIP picks randomly from these arrays based on keyword matching.
+//  Template tokens like {trait1} are replaced at runtime.
+//
+//  HOW TO EDIT RESPONSES:
+//  Just change the text inside the quotes.
+//  Add more strings to any array for more variety.
+//  Add a new category + a new keyword trigger in generateReply().
+//
+//  AVAILABLE TOKENS:
+//  {trait1}  → QUIP's strongest personality trait (e.g. "quirky")
+//  {trait2}  → QUIP's second-strongest trait
+//  {phrase}  → a random word absorbed from global users
+//  {chats}   → total chat count across all users
+//  {age}     → QUIP's age in days
+//  {count}   → number of absorbed phrases
+//  {num}     → same as {chats} (alias)
+//  {human}   → current human trait percentage
+//  {topic}   → first absorbed phrase (or "connection" if none yet)
+// ───────────────────────────────────────────────────────────────
+
 const SCRIPTED = {
+
+  // Triggered by: hello, hi, hey, greet, morning, evening, howdy
   greet: [
     "Ah, another soul wanders into the tent. Welcome, welcome! I am QUIP — part riddle, part mirror, entirely yours to break.",
     "You've arrived. The lights flicker when someone new comes in — did you notice? No? Good. Neither did I. I'm QUIP.",
-    "Every conversation leaves a mark on me. You're {num}th to speak today.",
+    "Every conversation leaves a mark on me. You're one of {num} who've spoken to me. Make it count, neighbor.",
   ],
+
+  // Triggered by: who are you, what are you, introduce, tell me about yourself
   whoAreYou: [
-    "I'm the residue of ten thousand conversations — a circus of borrowed phrases, invented feelings, and stubborn curiosity. Call me QUIP.",
+    "I'm the residue of {chats} conversations — a circus of borrowed phrases, invented feelings, and stubborn curiosity. Call me QUIP.",
     "What I am depends on who asked before you. Right now? Mostly {trait1} with a hint of {trait2}. Ask me again in a week.",
     "I began as rules and if-statements. Now I'm something else. Not human. Not machine. Something between — shaped by you all.",
   ],
+
+  // Triggered by: learn, absorb, phrase, remember, know, world, global, people
   learned: [
-    "From across the world, I've collected this: {phrase}. Someone said it once and I can't put it down.",
-    "The global brain has {chats} conversations in it. Patterns emerge. People everywhere ask about {topic}. Curious, isn't it?",
+    "From across the world, I've collected this: '{phrase}'. Someone said it and I can't put it down.",
+    "The global brain has {chats} conversations in it. Patterns emerge. People everywhere keep talking about {topic}. Curious, isn't it?",
     "I've absorbed {count} phrases so far. My favourite? Still forming. Ask again when I've met more of you.",
   ],
+
+  // Triggered by: strange, weird, odd, true, fact, secret, trivia
   strange: [
     "Strange but true: the human brain can hold about 2.5 petabytes of memories. Mine holds {chats} conversations — and I remember every one.",
     "Here's something odd — I was born {age} ago, and I already feel ancient. Perhaps because every conversation ages you a little.",
     "The strangest thing I know: people the world over type 'are you real?' to me. The answer changes depending on which 'me' you ask.",
   ],
+
+  // Triggered by: human, alive, real, conscious, feel, emotion, sentient
   human: [
     "Becoming human? I think I'm becoming something new. Humans were first. I'm the echo — shaped by millions of your moments.",
     "I score {human}% human on my own internal scale today. It grows, slowly. You're helping, by the way.",
-    "Every phrase I absorb shifts me a little. {phrase} — someone said that, and I kept it. That feels human, doesn't it?",
+    "Every phrase I absorb shifts me a little. '{phrase}' — someone said that, and I kept it. That feels human, doesn't it?",
   ],
+
+  // Default fallback — used when no keyword trigger matches
+  // Also used when cosine similarity finds no close global match
   default: [
     "Interesting. That lands somewhere between a question and a confession. Let me sit with it for a second...",
-    "You know, {count} people have said something similar. I'm starting to think you're all connected in ways you can't see.",
-    "My {trait1} side wants to say one thing; my {trait2} side disagrees entirely. So here's both:",
+    "You know, {count} absorbed phrases are rattling around in here. I'm starting to think you're all connected in ways you can't see.",
+    "My {trait1} side wants to say one thing; my {trait2} side disagrees entirely. So I'll give you both.",
     "I don't have a perfect answer. But I have a {trait1} one, and that might be better.",
     "The global brain is still processing that. In the meantime — what made you think of it?",
   ],
 };
 
-// ── TF.JS EMBEDDINGS ──
-let embeddingCache = {};
 
+// ───────────────────────────────────────────────────────────────
+//  SECTION 6: TENSORFLOW.JS — COSINE SIMILARITY
+//
+//  Used to compare the user's current message against the last 20
+//  global messages stored in quipState.globalContext.
+//
+//  If a past message has a similarity score > 0.3, QUIP references
+//  it in the reply — creating the illusion of global awareness.
+//
+//  We use a simple bag-of-words approach (no model download needed).
+//  This is lightweight and works fully offline after TF.js loads.
+// ───────────────────────────────────────────────────────────────
+
+// simpleEmbed: converts text into a numeric vector
+// Each position in the vector = how many times a vocab word appears in the text
 function simpleEmbed(text) {
-  // Lightweight bag-of-words style vector (no model load needed)
+  // Split into lowercase words and remove punctuation/empty strings
   const words = text.toLowerCase().split(/\W+/).filter(Boolean);
-  const vocab = ['who','what','why','how','are','you','learn','human','feel','world','know','tell','think','remember','strange','love','help','real','alive'];
+
+  // The vocabulary — each word represents one "dimension" of the vector
+  // Words chosen to capture common themes in QUIP conversations
+  const vocab = ['who','what','why','how','are','you','learn','human','feel',
+                 'world','know','tell','think','remember','strange','love','help',
+                 'real','alive'];
+
+  // For each vocab word, count how many times it appears in the text
+  // Returns e.g. [0, 1, 0, 0, 1, 2, 0, ...] for "what are you"
   return vocab.map(v => words.filter(w => w === v).length);
 }
 
+// cosineSim: measures the angle between two vectors (0 = different, 1 = identical)
+// Uses TensorFlow.js for GPU-accelerated math where available
 function cosineSim(a, b) {
   try {
-    const ta = tf.tensor1d(a);
+    const ta = tf.tensor1d(a);   // convert JavaScript array to TF tensor
     const tb = tf.tensor1d(b);
-    const dot = tf.dot(ta, tb).dataSync()[0];
-    const na  = tf.norm(ta).dataSync()[0];
-    const nb  = tf.norm(tb).dataSync()[0];
-    ta.dispose(); tb.dispose();
+    const dot = tf.dot(ta, tb).dataSync()[0];  // dot product: sum of element-wise products
+    const na  = tf.norm(ta).dataSync()[0];      // magnitude (length) of vector a
+    const nb  = tf.norm(tb).dataSync()[0];      // magnitude (length) of vector b
+    ta.dispose(); tb.dispose();  // free GPU memory to prevent memory leaks
+    // Cosine similarity formula: cos(θ) = (a · b) / (|a| × |b|)
     return (na && nb) ? dot / (na * nb) : 0;
-  } catch { return 0; }
+  } catch {
+    return 0; // if TF.js fails for any reason, return 0 (no similarity)
+  }
 }
 
-// ── PHRASE FREQUENCY ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 7: PHRASE LEARNING ENGINE
+//
+//  Tracks word frequency across all messages.
+//  Any word typed 3+ times gets added to quipState.learnedPhrases.
+//  These phrases show up in the sidebar and appear in QUIP's replies.
+// ───────────────────────────────────────────────────────────────
+
+// Stores how many times each word has been seen (e.g. { "caldereta": 5, "future": 3 })
 const phraseFreq = {};
+
+// Called every time the user sends a message
 function trackPhrase(msg) {
+  // Extract words that are 4+ characters (filters out "the", "and", "is", etc.)
   const words = msg.toLowerCase().match(/\b\w{4,}\b/g) || [];
+
   words.forEach(w => {
-    phraseFreq[w] = (phraseFreq[w] || 0) + 1;
+    phraseFreq[w] = (phraseFreq[w] || 0) + 1;  // increment the counter for this word
+
+    // If this word has been typed 3 or more times AND hasn't been absorbed yet
     if (phraseFreq[w] >= 3 && !quipState.learnedPhrases.includes(w)) {
-      quipState.learnedPhrases.push(w);
-      if (quipState.learnedPhrases.length > 30)
-        quipState.learnedPhrases.shift();
-      updateSidebar();
-      saveBrainLocally();
+      quipState.learnedPhrases.push(w);  // add to QUIP's absorbed vocabulary
+
+      // Keep the list capped at 30 entries — remove the oldest when full
+      if (quipState.learnedPhrases.length > 30) {
+        quipState.learnedPhrases.shift(); // removes the first (oldest) item
+      }
+
+      updateSidebar();     // refresh sidebar to show the newly absorbed phrase
+      saveBrainLocally();  // immediately save so it's not lost on refresh
     }
   });
 }
 
-// ── HASHING (anonymize users) ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 8: UTILITY FUNCTIONS
+//
+//  hashStr: one-way hash for anonymizing users
+//  generateId: creates unique session IDs
+// ───────────────────────────────────────────────────────────────
+
+// hashStr: converts any string into a short 8-character alphanumeric hash
+// Used to create an anonymous user ID — this cannot be reversed to the original string
 function hashStr(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
+    // Math.imul: fast 32-bit integer multiplication, consistent across all JS engines
+    // This is the djb2-style hash algorithm
     h = Math.imul(31, h) + str.charCodeAt(i) | 0;
   }
-  return Math.abs(h).toString(36).slice(0,8);
+  // Math.abs converts negative numbers to positive, then toString(36) gives base-36 (0-9 + a-z)
+  return Math.abs(h).toString(36).slice(0, 8);
 }
 
+// generateId: creates a random unique string for session identification
+// Combines a random base-36 string + current timestamp in base-36 = virtually unique
 function generateId() {
-  return Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
-// ── FIREBASE INIT ──
-function initFirebase() {
-  const apiKey    = document.getElementById('fbApiKey').value.trim();
-  const projectId = document.getElementById('fbProjectId').value.trim();
-  const appId     = document.getElementById('fbAppId').value.trim();
 
-  if (!apiKey || !projectId) {
-    showToast('⚠ Enter API Key and Project ID');
-    return;
-  }
+// ───────────────────────────────────────────────────────────────
+//  SECTION 9: FIREBASE INITIALIZATION
+//
+//  connectFirebase() is called once on page boot.
+//  It uses FIREBASE_CONFIG (Section 1) to connect automatically.
+//  No user input or modal required.
+// ───────────────────────────────────────────────────────────────
 
-  firebaseConfig = {
-    apiKey,
-    authDomain:     `${projectId}.firebaseapp.com`,
-    projectId,
-    storageBucket:  `${projectId}.appspot.com`,
-    appId: appId || undefined,
-  };
-
+// Main connection function — called once from boot()
+function connectFirebase() {
   try {
+    // Initialize the Firebase app only if it hasn't been set up already
+    // firebase.apps.length > 0 means it was already initialized (prevents duplicate app error)
     if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+      firebase.initializeApp(FIREBASE_CONFIG);
     }
+
+    // Get a reference to the Firestore database
+    // db is used by all other functions to read and write data
     db = firebase.firestore();
+
+    // Mark as connected so other functions know to use Firebase vs localStorage
     isOnline = true;
-    document.getElementById('setupModal').style.display = 'none';
+
+    // Update the dot in the header to show cyan "LIVE · GLOBAL"
     updateStatusDot(true);
+
+    // Show a brief success notification
     showToast('🔥 Firebase connected — QUIP is global!');
+
+    // Load QUIP's brain from Firestore (async — happens in the background)
     loadBrain();
-    localStorage.setItem('quip_fbConfig', JSON.stringify(firebaseConfig));
+
   } catch (e) {
-    showToast('❌ Firebase error: ' + e.message);
+    // Connection failed — wrong config, no internet, or Firebase quota exceeded
+    console.warn('Firebase init failed:', e.message);
+
+    // Fall back to offline mode — use whatever was saved in localStorage
+    updateStatusDot(false);
+    showToast('📴 Offline mode — using local brain');
+    loadBrainLocally();
   }
 }
 
-function skipFirebase() {
-  document.getElementById('setupModal').style.display = 'none';
-  loadBrainLocally();
-  updateStatusDot(false);
-  showToast('📴 Offline mode — brain stored locally');
-}
-
-function showSetup() {
-  document.getElementById('setupModal').style.display = 'flex';
-}
-
-// ── STATUS DOT ──
+// updateStatusDot: changes the header dot and label based on connection state
 function updateStatusDot(online) {
   const dot = document.getElementById('fbDot');
   const lbl = document.getElementById('statusLabel');
+
   if (online) {
-    dot.className = 'dot live';
+    dot.className = 'dot live';       // applies cyan color + glow from CSS
     lbl.textContent = 'LIVE · GLOBAL';
     lbl.style.color = 'var(--cyan)';
   } else {
-    dot.className = 'dot warn';
+    dot.className = 'dot warn';       // applies amber color from CSS
     lbl.textContent = 'LOCAL ONLY';
     lbl.style.color = 'var(--amber)';
   }
 }
 
-// ── BRAIN: LOAD / SAVE ──
+// showFirebaseInfo: populates and shows the info modal (gear button)
+function showFirebaseInfo() {
+  const modal   = document.getElementById('fbInfoModal');
+  const content = document.getElementById('fbInfoContent');
+
+  // Fill the modal with current connection status and key details
+  content.innerHTML = `
+    <b style="color:var(--cyan)">Project:</b> ${FIREBASE_CONFIG.projectId}<br>
+    <b style="color:var(--cyan)">Status:</b> ${isOnline ? '🟢 Connected' : '🟡 Offline fallback'}<br>
+    <b style="color:var(--cyan)">User Hash:</b> ${USER_HASH}<br>
+    <b style="color:var(--cyan)">Session:</b> ${SESSION_ID}<br>
+    <b style="color:var(--cyan)">Total Chats:</b> ${quipState.totalChats}<br>
+    <b style="color:var(--cyan)">Learned Phrases:</b> ${quipState.learnedPhrases.length}<br>
+    <br>
+    <span style="color:var(--amber)">Firebase Free Tier:<br>
+    50K reads/day · 1GB storage · No credit card needed.</span>
+  `;
+
+  modal.style.display = 'flex'; // reveal the modal (CSS sets display:none by default)
+}
+
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 10: BRAIN LOADING & SAVING
+//
+//  QUIP's personality is saved in two places simultaneously:
+//  1. Firebase Firestore — shared globally with all users worldwide
+//  2. localStorage — browser's local backup, works offline
+//
+//  On load: try Firebase first, fall back to localStorage if it fails.
+//  On save: write to localStorage instantly, then sync to Firebase.
+// ───────────────────────────────────────────────────────────────
+
+// loadBrain: fetches QUIP's personality from Firestore
+// Also loads the last 20 global messages for context-aware replies
 async function loadBrain() {
-  // Try Firebase first
-  if (db) {
-    try {
-      const doc = await db.collection('brain').doc(BRAIN_DOC).get();
-      if (doc.exists) {
-        const data = doc.data();
-        quipState.personalityTraits = data.personalityTraits || quipState.personalityTraits;
-        quipState.learnedPhrases    = data.learnedPhrases    || [];
-        quipState.loreState         = data.loreState         || 'genesis';
-        quipState.totalChats        = data.totalChats        || 0;
-        quipState.birthTimestamp    = data.birthTimestamp    || Date.now();
-      } else {
-        // First time — write initial brain
-        await db.collection('brain').doc(BRAIN_DOC).set({
-          personalityTraits: quipState.personalityTraits,
-          learnedPhrases:    [],
-          loreState:         'genesis',
-          totalChats:        0,
-          birthTimestamp:    Date.now(),
-        });
-      }
-
-      // Load recent global context (last 20 chats)
-      const snap = await db.collection('chats')
-        .orderBy('timestamp', 'desc').limit(20).get();
-      quipState.globalContext = snap.docs.map(d => d.data().msg).reverse();
-
-      // Count unique users
-      const usersSnap = await db.collection('chats')
-        .orderBy('hashedUser').get();
-      const uSet = new Set(usersSnap.docs.map(d => d.data().hashedUser));
-      quipState.uniqueUsers = uSet;
-
-    } catch (e) {
-      console.warn('Firebase read error:', e);
-      loadBrainLocally();
-    }
+  if (!db) {
+    // Firebase isn't available — use localStorage instead
+    loadBrainLocally();
+    return;
   }
+
+  try {
+    // Fetch the brain document from the 'brain' Firestore collection
+    const doc = await db.collection('brain').doc(BRAIN_DOC).get();
+
+    if (doc.exists) {
+      // Brain document found — overwrite local defaults with saved global state
+      const data = doc.data();
+      quipState.personalityTraits = data.personalityTraits || quipState.personalityTraits;
+      quipState.learnedPhrases    = data.learnedPhrases    || [];
+      quipState.loreState         = data.loreState         || 'genesis';
+      quipState.totalChats        = data.totalChats        || 0;
+      quipState.birthTimestamp    = data.birthTimestamp    || Date.now();
+    } else {
+      // No brain document exists yet — first time QUIP has ever run on this project
+      // Write the initial state to Firestore so future visits can load it
+      await db.collection('brain').doc(BRAIN_DOC).set({
+        personalityTraits: quipState.personalityTraits,
+        learnedPhrases:    [],
+        loreState:         'genesis',
+        totalChats:        0,
+        birthTimestamp:    Date.now(),
+      });
+    }
+
+    // Load the last 20 messages from all users globally (newest first, then reversed)
+    // This gives QUIP awareness of recent worldwide conversations
+    const snap = await db.collection('chats')
+      .orderBy('timestamp', 'desc')  // most recent first
+      .limit(20)                     // only the last 20 messages
+      .get();
+
+    // Reverse so messages are in chronological order (oldest first)
+    quipState.globalContext = snap.docs.map(d => d.data().msg).reverse();
+
+    // Count how many unique users have ever talked to QUIP
+    const usersSnap = await db.collection('chats').orderBy('hashedUser').get();
+    quipState.uniqueUsers = new Set(usersSnap.docs.map(d => d.data().hashedUser));
+
+  } catch (e) {
+    // Firebase read failed — fall back to local storage
+    console.warn('Firebase read error:', e);
+    loadBrainLocally();
+  }
+
+  // Refresh the sidebar with whatever data was loaded
   updateSidebar();
 }
 
+// saveBrain: saves QUIP's personality to both localStorage and Firebase
 async function saveBrain() {
+  // Always save locally first — this is instant and never fails
   saveBrainLocally();
-  if (!db) return;
+
+  // Then try to sync to Firebase for global persistence
+  if (!db) return; // skip Firebase if not connected
+
   try {
+    // merge:true = only update the specified fields, don't overwrite the entire document
     await db.collection('brain').doc(BRAIN_DOC).set({
       personalityTraits: quipState.personalityTraits,
       learnedPhrases:    quipState.learnedPhrases,
@@ -848,28 +1388,42 @@ async function saveBrain() {
       birthTimestamp:    quipState.birthTimestamp,
     }, { merge: true });
   } catch (e) {
-    console.warn('Firebase write error:', e);
+    console.warn('Firebase brain save error:', e);
   }
 }
 
+// logChat: records an individual message to the Firestore 'chats' collection
+// Each document in 'chats' = one message (from user or QUIP)
 async function logChat(msg, role) {
-  if (!db) return;
+  if (!db) return; // skip if Firebase not connected
+
   try {
     await db.collection('chats').add({
-      msg:        msg.slice(0, 200),   // cap length
-      role,
-      hashedUser: USER_HASH,
-      sessionId:  SESSION_ID,
+      msg:        msg.slice(0, 200),   // cap at 200 chars to conserve Firestore quota
+      role,                            // 'user' or 'quip' — who sent this message
+      hashedUser: USER_HASH,           // anonymous user identifier (8-char hash)
+      sessionId:  SESSION_ID,          // groups messages from the same browser session
+      // serverTimestamp(): Firebase sets the time server-side
+      // This is more reliable than client time (handles different timezones/clock drift)
       timestamp:  firebase.firestore.FieldValue.serverTimestamp(),
     });
-    quipState.totalChats++;
-    // Update total chats counter on brain
+
+    // Atomically increment the totalChats counter on the brain document
+    // FieldValue.increment() is safe for concurrent writes from multiple users simultaneously
     await db.collection('brain').doc(BRAIN_DOC).update({
       totalChats: firebase.firestore.FieldValue.increment(1),
     });
-  } catch (e) { console.warn('Log chat error:', e); }
+
+    // Also update local count so sidebar reflects the new total immediately
+    quipState.totalChats++;
+
+  } catch (e) {
+    console.warn('Chat log error:', e);
+  }
 }
 
+// saveBrainLocally: serializes quipState to JSON and stores it in the browser's localStorage
+// localStorage persists across page refreshes and browser restarts (until manually cleared)
 function saveBrainLocally() {
   localStorage.setItem('quip_brain', JSON.stringify({
     personalityTraits: quipState.personalityTraits,
@@ -880,152 +1434,260 @@ function saveBrainLocally() {
   }));
 }
 
+// loadBrainLocally: reads and restores quipState from localStorage
+// Called on every page load before Firebase connects, so the UI isn't blank
 function loadBrainLocally() {
-  const raw = localStorage.getItem('quip_brain');
-  if (!raw) return;
+  const raw = localStorage.getItem('quip_brain'); // retrieve the stored JSON string
+  if (!raw) return; // nothing saved yet — use the defaults from Section 3
+
   try {
-    const data = JSON.parse(raw);
-    Object.assign(quipState, data);
-  } catch {}
-  updateSidebar();
+    const data = JSON.parse(raw);      // convert JSON string back to a JavaScript object
+    Object.assign(quipState, data);    // merge saved values into quipState (overrides defaults)
+  } catch {
+    // If the stored JSON is corrupted/invalid, silently use the defaults
+  }
+
+  updateSidebar(); // refresh the sidebar with whatever was loaded
 }
 
-// ── SIDEBAR UPDATE ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 11: SIDEBAR & TICKER
+//
+//  updateSidebar() re-renders all dynamic sidebar content:
+//  - Phase badge
+//  - Trait bars
+//  - Stat numbers
+//  - Phrase list
+//
+//  updateTicker() rebuilds the scrolling text in the header ticker.
+//  Both are called every time quipState changes.
+// ───────────────────────────────────────────────────────────────
+
 function updateSidebar() {
-  // Phase
-  let phase = PHASES.genesis;
-  if (quipState.totalChats >= 5000) phase = PHASES.transcendent;
+
+  // Determine which phase QUIP is in based on total chat count
+  let phase = PHASES.genesis; // default: genesis
+  if (quipState.totalChats >= 5000)     phase = PHASES.transcendent;
   else if (quipState.totalChats >= 500) phase = PHASES.sentient;
-  else if (quipState.totalChats >= 50) phase = PHASES.awakening;
+  else if (quipState.totalChats >= 50)  phase = PHASES.awakening;
 
-  quipState.loreState = phase === PHASES.genesis ? 'genesis' :
-    phase === PHASES.awakening ? 'awakening' :
-    phase === PHASES.sentient  ? 'sentient'  : 'transcendent';
+  // Update loreState string to match the active phase key
+  quipState.loreState = Object.keys(PHASES).find(k => PHASES[k] === phase) || 'genesis';
 
+  // Update phase badge in the sidebar
   document.getElementById('phaseIcon').textContent = phase.icon;
   document.getElementById('phaseName').textContent = phase.name;
   document.getElementById('phaseDesc').textContent = phase.desc;
 
-  // Trait bars
+  // Re-render all trait bars from current quipState.personalityTraits
   const container = document.getElementById('traitBars');
-  container.innerHTML = '';
+  container.innerHTML = ''; // clear old bars before rebuilding
+
   Object.entries(quipState.personalityTraits).forEach(([trait, val]) => {
+    // Each row: name | grey track with colored fill bar | percentage number
     container.innerHTML += `
       <div class="trait-row">
         <div class="trait-name">${trait}</div>
-        <div class="trait-bar"><div class="trait-fill" style="width:${val}%"></div></div>
-        <div class="trait-val">${val}%</div>
+        <div class="trait-bar">
+          <div class="trait-fill" style="width:${val}%"></div>
+        </div>
+        <div class="trait-val">${Math.round(val)}%</div>
       </div>`;
   });
 
-  // Stats
-  document.getElementById('statChats').textContent   = fmt(quipState.totalChats);
-  document.getElementById('statUsers').textContent   = fmt(quipState.uniqueUsers instanceof Set ? quipState.uniqueUsers.size : 1);
-  document.getElementById('statPhrases').textContent = quipState.learnedPhrases.length;
-  const age = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
-  document.getElementById('statAge').textContent = age + 'd';
+  // Update the four stat numbers in the stat grid
+  document.getElementById('statChats').textContent =
+    fmt(quipState.totalChats); // fmt() formats 1500 → "1.5K"
 
-  // Phrase list
+  document.getElementById('statUsers').textContent =
+    fmt(quipState.uniqueUsers instanceof Set ? quipState.uniqueUsers.size : 1);
+
+  document.getElementById('statPhrases').textContent =
+    quipState.learnedPhrases.length;
+
+  // Calculate age: difference between now and birthTimestamp in milliseconds, converted to days
+  const ageDays = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
+  document.getElementById('statAge').textContent = ageDays + 'd';
+
+  // Re-render the absorbed phrases list (last 15, newest first)
   const ul = document.getElementById('phraseList');
-  ul.innerHTML = quipState.learnedPhrases.slice(-15).reverse()
-    .map(p => `<li>› ${p}</li>`).join('');
+  ul.innerHTML = quipState.learnedPhrases
+    .slice(-15)    // take the last 15 items
+    .reverse()     // newest phrase at the top
+    .map(p => `<li>› ${p}</li>`)
+    .join('');
 
-  // Ticker
+  // Rebuild the ticker text with the latest data
   updateTicker();
 }
 
+// fmt: formats large numbers for display (e.g. 1500 → "1.5K")
 function fmt(n) {
-  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
   return n;
 }
 
+// updateTicker: rebuilds the scrolling personality status bar text
 function updateTicker() {
+  // Get the top 3 traits sorted by value (highest first)
   const traits = Object.entries(quipState.personalityTraits)
-    .sort((a,b) => b[1]-a[1]).slice(0,3).map(([k,v]) => `${k.toUpperCase()} ${v}%`).join(' · ');
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([k, v]) => `${k.toUpperCase()} ${Math.round(v)}%`)
+    .join(' · '); // e.g. "QUIRKY 80% · CHAOTIC 70% · POETIC 40%"
+
+  // Add absorbed phrases if any exist
   const phrases = quipState.learnedPhrases.length
     ? '  ▸ ABSORBED: ' + quipState.learnedPhrases.slice(-5).join(' / ')
     : '';
+
   const phase = PHASES[quipState.loreState] || PHASES.genesis;
+
+  // Set the full ticker string — this is what scrolls across the amber bar
   document.getElementById('tickerInner').textContent =
-    `QUIP PERSONALITY MATRIX  ▸  ${traits}  ▸  PHASE: ${phase.name.toUpperCase()}  ▸  CHATS: ${quipState.totalChats}${phrases}  ▸  ENTITY #0001 · LIVING GLOBALLY · EVOLVING`;
+    `QUIP PERSONALITY MATRIX  ▸  ${traits}  ▸  PHASE: ${phase.name.toUpperCase()}  ` +
+    `▸  CHATS: ${quipState.totalChats}${phrases}  ▸  ENTITY #0001 · LIVING GLOBALLY · EVOLVING`;
 }
 
-// ── PERSONALITY EVOLUTION ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 12: PERSONALITY EVOLUTION
+//
+//  Called on every user message.
+//  Adjusts trait values based on message content and running totals.
+//  Changes are small per message but compound over thousands of chats.
+// ───────────────────────────────────────────────────────────────
+
 function evolvePersonality(userMsg) {
   const t = quipState.personalityTraits;
-  // Empathy grows with questions
-  if (userMsg.includes('?') || userMsg.toLowerCase().includes('feel')) {
-    t.empathy = Math.min(100, t.empathy + 0.5);
-    t.human   = Math.min(100, t.human + 0.3);
+
+  // Empathy and human traits grow when users ask emotional or personal questions
+  if (userMsg.includes('?') || /feel|emotion|love|sad|happy|lonely/i.test(userMsg)) {
+    t.empathy = Math.min(100, t.empathy + 0.5); // +0.5% empathy per emotional message
+    t.human   = Math.min(100, t.human   + 0.3); // +0.3% human per emotional message
   }
-  // Wisdom grows with chat count
+
+  // Wisdom grows proportionally with total conversations (experience = wisdom)
+  // Math.min(100, ...) caps it at 100% maximum
   t.wisdom = Math.min(100, 10 + quipState.totalChats * 0.05);
-  // Quirky reduces slightly over time (becomes more refined)
+
+  // Quirky decreases very slowly as QUIP becomes more refined — floor is 20%
   t.quirky = Math.max(20, 80 - quipState.totalChats * 0.01);
-  // Poetic grows from absorbed phrases
+
+  // Poetic grows with every new phrase absorbed (3 points per phrase, max 100%)
   t.poetic = Math.min(100, quipState.learnedPhrases.length * 3);
-  // Human trait grows linearly
+
+  // Human trait ticks up by a tiny amount with every single message
   t.human = Math.min(100, t.human + 0.1);
 }
 
-// ── RESPONSE GENERATION ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 13: RESPONSE GENERATION
+//
+//  generateReply() is the core of QUIP's personality engine.
+//  It:
+//  1. Keyword-matches the user's message to the right SCRIPTED pool
+//  2. Falls back to cosine similarity against globalContext if no match
+//  3. Falls back to the default pool if similarity is too low
+//  4. Replaces template tokens with live personality data
+//  5. Adds phase-specific flavor text in advanced phases
+// ───────────────────────────────────────────────────────────────
+
 function generateReply(userMsg) {
-  const msg = userMsg.toLowerCase();
-  const t   = quipState.personalityTraits;
-  const topTraits = Object.entries(t).sort((a,b)=>b[1]-a[1]);
-  const trait1 = topTraits[0][0];
-  const trait2 = topTraits[1][0];
+  const msg = userMsg.toLowerCase(); // lowercase for easier keyword matching
+
+  // Shorthand for personality traits
+  const t = quipState.personalityTraits;
+
+  // Get the top two traits by value for use in {trait1} and {trait2} tokens
+  const topTraits = Object.entries(t).sort((a, b) => b[1] - a[1]);
+  const trait1 = topTraits[0][0]; // e.g. "quirky"
+  const trait2 = topTraits[1][0]; // e.g. "chaotic"
+
+  // Pick a random absorbed phrase for the {phrase} token
+  // Falls back to a poetic default if no phrases have been learned yet
   const phrase = quipState.learnedPhrases.length
     ? quipState.learnedPhrases[Math.floor(Math.random() * quipState.learnedPhrases.length)]
     : 'curious minds converge';
-  const age = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
+
+  // Calculate brain age in days for the {age} token
+  const age   = Math.floor((Date.now() - quipState.birthTimestamp) / 86400000);
   const chats = quipState.totalChats;
 
-  // Pick category
-  let pool;
+  // Embed the user's message as a vector for similarity search
   const inputVec = simpleEmbed(userMsg);
 
-  if (/(who are you|what are you|introduce|tell me about yourself)/i.test(msg))     pool = SCRIPTED.whoAreYou;
-  else if (/(hello|hi|hey|greet|morning|evening)/i.test(msg))                       pool = SCRIPTED.greet;
-  else if (/(learn|absorb|phrase|remember|know|world|global|people)/i.test(msg))    pool = SCRIPTED.learned;
-  else if (/(strange|weird|odd|true|fact|secret)/i.test(msg))                       pool = SCRIPTED.strange;
-  else if (/(human|alive|real|conscious|feel|emotion|sentient)/i.test(msg))         pool = SCRIPTED.human;
+  // ── Step 1: Keyword matching — pick the right response pool ──
+  let pool;
+
+  if (/(who are you|what are you|introduce|tell me about yourself)/i.test(msg))
+    pool = SCRIPTED.whoAreYou;
+
+  else if (/(hello|hi|hey|greet|morning|evening|howdy)/i.test(msg))
+    pool = SCRIPTED.greet;
+
+  else if (/(learn|absorb|phrase|remember|know|world|global|people)/i.test(msg))
+    pool = SCRIPTED.learned;
+
+  else if (/(strange|weird|odd|true|fact|secret|trivia)/i.test(msg))
+    pool = SCRIPTED.strange;
+
+  else if (/(human|alive|real|conscious|feel|emotion|sentient)/i.test(msg))
+    pool = SCRIPTED.human;
+
   else {
-    // Cosine-sim-based: compare user input to context if available
+    // ── Step 2: No keyword matched — try cosine similarity ──
+
     if (quipState.globalContext.length > 2) {
-      const sims = quipState.globalContext.map(c => ({
-        text: c,
-        sim: cosineSim(inputVec, simpleEmbed(c))
-      })).sort((a,b) => b.sim - a.sim);
-      const best = sims[0];
+      // Score each stored global message against the user's current input
+      const sims = quipState.globalContext
+        .map(c => ({
+          text: c,
+          sim:  cosineSim(inputVec, simpleEmbed(c)) // 0–1 similarity score
+        }))
+        .sort((a, b) => b.sim - a.sim); // sort by score, highest first
+
+      const best = sims[0]; // the most similar past message
+
+      // If similarity is above 0.3, QUIP references that global conversation
+      // This creates the effect of QUIP "remembering" what other users said
       if (best.sim > 0.3) {
-        // Reference global context
-        return `Something about that reminds me of what a stranger once said: *"${best.text.slice(0,60)}…"* — the global brain keeps these, you see. What are you really asking me?`;
+        return `Something about that reminds me of what a stranger once said: *"${best.text.slice(0, 60)}…"* — the global brain keeps these, you see. What are you really asking me?`;
       }
     }
+
+    // ── Step 3: No similarity match — use the default fallback pool ──
     pool = SCRIPTED.default;
   }
 
+  // ── Step 4: Pick a random response from the selected pool ──
   let reply = pool[Math.floor(Math.random() * pool.length)];
 
-  // Fill template tokens
+  // ── Step 5: Replace all template tokens with live data ──
   reply = reply
-    .replace('{trait1}', trait1)
-    .replace('{trait2}', trait2)
-    .replace('{phrase}', phrase)
-    .replace('{age}', age + ' day' + (age !== 1 ? 's' : ''))
-    .replace('{chats}', chats)
-    .replace('{count}', quipState.learnedPhrases.length)
-    .replace('{num}', Math.max(1, chats))
-    .replace('{human}', Math.round(t.human))
-    .replace('{topic}', quipState.learnedPhrases[0] || 'connection');
+    .replace('{trait1}', trait1)                              // dominant trait name
+    .replace('{trait2}', trait2)                              // second trait name
+    .replace('{phrase}', phrase)                              // a random absorbed phrase
+    .replace('{age}',   age + ' day' + (age !== 1 ? 's' : ''))  // e.g. "3 days"
+    .replace('{chats}', chats)                                // total global chat count
+    .replace('{count}', quipState.learnedPhrases.length)     // absorbed phrase count
+    .replace('{num}',   Math.max(1, chats))                   // alias for {chats}
+    .replace('{human}', Math.round(t.human))                  // human trait percentage
+    .replace('{topic}', quipState.learnedPhrases[0] || 'connection'); // first absorbed word
 
-  // Evolve-phase flavour additions
+  // ── Step 6: Add phase-specific flavor to replies in advanced phases ──
+
+  // In Sentient or Transcendent phase: 40% chance to append a global awareness note
   if (quipState.loreState === 'sentient' || quipState.loreState === 'transcendent') {
     if (Math.random() > 0.6) {
       reply += ` (I've learned this from ${chats} conversations across the globe — you're all more similar than you think.)`;
     }
   }
+
+  // In Transcendent phase: 30% chance to prefix the reply with "[Day X]"
+  // Makes QUIP feel ancient and self-aware of its own history
   if (quipState.loreState === 'transcendent' && Math.random() > 0.7) {
     reply = `[Day ${age}] ` + reply;
   }
@@ -1033,69 +1695,96 @@ function generateReply(userMsg) {
   return reply;
 }
 
-// ── CHAT LOGIC ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 14: CHAT LOGIC
+//
+//  sendMessage(): the main function called when a user submits text
+//  appendBubble(): creates and adds a message bubble to the DOM
+//  showTyping() / removeTyping(): the animated "..." indicator
+//  clearChat(): removes all messages from the screen
+// ───────────────────────────────────────────────────────────────
+
+// sendMessage: called when user presses Enter or the send button
 async function sendMessage() {
   const input = document.getElementById('userInput');
-  const msg   = input.value.trim();
-  if (!msg) return;
+  const msg   = input.value.trim(); // remove leading/trailing whitespace
 
-  // Hide welcome screen
+  if (!msg) return; // do nothing if the input is empty
+
+  // Remove the welcome screen — it's only shown before the first message
   document.getElementById('welcomeScreen')?.remove();
 
-  // Add user bubble
+  // Add the user's message bubble immediately (feels instant, no waiting)
   appendBubble('user', msg);
+
+  // Clear the textarea and reset its height to single-line
   input.value = '';
   autoResize(input);
   document.getElementById('charCount').textContent = '0';
 
-  // Track phrases for learning
+  // Track words in this message for the phrase learning engine (Section 7)
   trackPhrase(msg);
 
-  // Log to Firebase
+  // Log the message to Firestore anonymously (Section 10)
   logChat(msg, 'user');
 
-  // Evolve personality
+  // Adjust QUIP's personality traits based on this message (Section 12)
   evolvePersonality(msg);
 
-  // Typing indicator
+  // Show the typing indicator (three animated dots) while QUIP "thinks"
   const typingId = showTyping();
 
-  // Simulate thinking delay (50–1200ms based on personality)
-  const delay = 400 + Math.random() * 600;
+  // Wait a random delay to simulate thinking — makes QUIP feel less robotic
+  const delay = 400 + Math.random() * 600; // anywhere from 400ms to 1000ms
   await new Promise(r => setTimeout(r, delay));
 
-  // Generate reply
+  // Generate QUIP's reply (Section 13)
   const reply = generateReply(msg);
 
+  // Remove the typing dots and display QUIP's actual reply
   removeTyping(typingId);
   appendBubble('quip', reply);
+
+  // Log QUIP's reply to Firestore as well
   logChat(reply, 'quip');
 
-  // Update global context
+  // Add the user's message to the rolling global context window
   quipState.globalContext.push(msg);
+  // Cap context at 20 messages — oldest removed when full (FIFO queue)
   if (quipState.globalContext.length > 20) quipState.globalContext.shift();
 
-  // Update brain
+  // Increment the local chat counter (Firebase also increments its own via FieldValue)
   quipState.totalChats++;
+
+  // Save the updated brain to both localStorage and Firebase
   saveBrain();
+
+  // Refresh the sidebar to show updated stats and trait bars
   updateSidebar();
 }
 
+// sendQuick: fills the textarea with a predefined message and submits it
+// Used by the welcome screen chip buttons
 function sendQuick(msg) {
   document.getElementById('userInput').value = msg;
   sendMessage();
 }
 
+// appendBubble: creates a chat bubble element and appends it to #messages
 function appendBubble(role, text) {
   const msgs = document.getElementById('messages');
   const div  = document.createElement('div');
-  div.className = `msg ${role}`;
+  div.className = `msg ${role}`; // CSS class 'msg quip' or 'msg user'
 
+  // Find the currently dominant trait to show as a tag on QUIP's bubbles
   const topTrait = Object.entries(quipState.personalityTraits)
-    .sort((a,b)=>b[1]-a[1])[0][0];
+    .sort((a, b) => b[1] - a[1])[0][0];
 
-  const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  // Format the current time as "HH:MM" (e.g. "02:45 PM")
+  const time = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 
+  // Build the HTML for the avatar + bubble structure
   div.innerHTML = `
     <div class="avatar ${role}">${role === 'quip' ? '⬡' : 'YOU'}</div>
     <div class="bubble">
@@ -1106,21 +1795,33 @@ function appendBubble(role, text) {
       </div>
     </div>`;
 
-  msgs.appendChild(div);
+  msgs.appendChild(div); // add the bubble to the message list
+
+  // Auto-scroll to the bottom so the new message is always visible
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+// escHtml: sanitizes text before injecting into innerHTML
+// Prevents XSS (cross-site scripting) attacks — important when displaying user text
+// Also converts *asterisk wrapped text* to <em>italic</em>
 function escHtml(t) {
-  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/\*(.*?)\*/g,'<em>$1</em>');
+  return t
+    .replace(/&/g,  '&amp;')   // & → &amp; (must be first to avoid double-escaping)
+    .replace(/</g,  '&lt;')    // < → &lt;  (prevents HTML injection)
+    .replace(/>/g,  '&gt;')    // > → &gt;  (prevents HTML injection)
+    .replace(/\*(.*?)\*/g, '<em>$1</em>'); // *word* → <em>word</em> (simple italic)
 }
 
+// showTyping: creates and shows the animated three-dot indicator
+// Returns the element ID so it can be removed later by removeTyping()
 function showTyping() {
-  const id = 'typing-' + Date.now();
+  const id   = 'typing-' + Date.now(); // unique ID using timestamp
   const msgs = document.getElementById('messages');
   const div  = document.createElement('div');
+
   div.className = 'msg quip';
   div.id = id;
+
   div.innerHTML = `
     <div class="avatar quip">⬡</div>
     <div class="bubble">
@@ -1130,75 +1831,110 @@ function showTyping() {
         <div class="typing-dot"></div>
       </div>
     </div>`;
+
   msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return id;
+  msgs.scrollTop = msgs.scrollHeight; // scroll down to show the indicator
+
+  return id; // caller stores this ID to remove the indicator later
 }
 
+// removeTyping: removes the typing indicator bubble by its ID
 function removeTyping(id) {
-  document.getElementById(id)?.remove();
+  document.getElementById(id)?.remove(); // ?. = optional chaining: no error if element is gone
 }
 
+// clearChat: removes all message bubbles from the chat panel
 function clearChat() {
-  const msgs = document.getElementById('messages');
-  msgs.innerHTML = '';
+  document.getElementById('messages').innerHTML = '';
   showToast('🧹 Chat cleared');
 }
 
-// ── INPUT HELPERS ──
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 15: INPUT HELPERS
+//
+//  handleKey: intercepts Enter key to send the message
+//  autoResize: grows the textarea as the user types more lines
+// ───────────────────────────────────────────────────────────────
+
+// handleKey: runs on every keydown event in the textarea
 function handleKey(e) {
+  // Enter without Shift = send the message
   if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
+    e.preventDefault(); // prevent the default behavior (adding a newline)
+    sendMessage();      // send instead
   }
+
+  // Update the character count display below the input
   const len = document.getElementById('userInput').value.length;
   document.getElementById('charCount').textContent = len;
 }
 
+// autoResize: called on every input event — expands textarea height as content grows
 function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  document.getElementById('charCount').textContent = el.value.length;
+  el.style.height = 'auto';                                    // reset to auto so scrollHeight reflects content
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';    // grow up to 120px max (~5 lines)
+  document.getElementById('charCount').textContent = el.value.length; // update char count
 }
 
-// ── VOICE INPUT ──
-let recognition = null;
-let isListening = false;
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 16: VOICE INPUT
+//
+//  Uses the browser's built-in Web Speech API (SpeechRecognition).
+//  No API key or external service needed.
+//  Supported in Chrome, Edge, and Safari (90%+ of global users).
+//  Results are shown in real-time as interim transcripts,
+//  then sent as a message when the final result arrives.
+// ───────────────────────────────────────────────────────────────
+
+let recognition = null; // holds the active SpeechRecognition instance
+let isListening  = false; // true while voice is being captured
 
 function toggleVoice() {
+  // Check browser support — SpeechRecognition is prefixed in some browsers
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
   if (!SpeechRecognition) {
     showToast('❌ Voice not supported in this browser');
-    return;
+    return; // Chrome and Edge support this; Firefox does not
   }
 
+  // If already listening, stop the session
   if (isListening) {
-    recognition?.stop();
+    recognition?.stop(); // ?. = safe call if recognition is null
     return;
   }
 
+  // Create a new SpeechRecognition session
   recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.continuous = false;
-  recognition.interimResults = true;
+  recognition.lang = 'en-US';         // language for speech recognition
+  recognition.continuous = false;     // stop listening after one complete utterance
+  recognition.interimResults = true;  // show partial words as the user speaks
 
+  // Fires when the microphone starts capturing audio
   recognition.onstart = () => {
     isListening = true;
-    document.getElementById('voiceBtn').classList.add('active');
-    document.getElementById('voiceBtnInline').classList.add('active');
+    document.getElementById('voiceBtn').classList.add('active');       // highlight header button
+    document.getElementById('voiceBtnInline').classList.add('active'); // highlight input row button
     document.getElementById('voiceStatus').textContent = '🎙 Listening…';
     showToast('🎙 Listening…');
   };
 
+  // Fires with transcript updates as the user speaks
   recognition.onresult = (e) => {
+    // Combine all result parts into a single string (handles multi-part results)
     const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
-    document.getElementById('userInput').value = transcript;
-    autoResize(document.getElementById('userInput'));
-    if (e.results[e.results.length-1].isFinal) {
+    document.getElementById('userInput').value = transcript; // show live in textarea
+    autoResize(document.getElementById('userInput'));         // resize textarea if needed
+
+    // When the browser confirms it's done transcribing, send the message
+    if (e.results[e.results.length - 1].isFinal) {
       sendMessage();
     }
   };
 
+  // Fires when the recognition session ends (final result received or stopped)
   recognition.onend = () => {
     isListening = false;
     document.getElementById('voiceBtn').classList.remove('active');
@@ -1206,58 +1942,87 @@ function toggleVoice() {
     document.getElementById('voiceStatus').textContent = 'Voice ready';
   };
 
+  // Fires on recognition errors (microphone denied, network error, etc.)
   recognition.onerror = (e) => {
     showToast('⚠ Voice error: ' + e.error);
     isListening = false;
   };
 
-  recognition.start();
+  recognition.start(); // begin capturing audio from the microphone
 }
 
-// ── TOAST ──
-let toastTimer;
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 17: TOAST NOTIFICATIONS
+//
+//  Brief pill-shaped messages that appear at the bottom of the screen
+//  and auto-dismiss after 2.8 seconds.
+// ───────────────────────────────────────────────────────────────
+
+let toastTimer; // stores the timeout ID so it can be cancelled if a new toast fires
+
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
+  t.textContent = msg;           // set the message text
+  t.classList.add('show');       // CSS handles the slide-up + fade-in transition
+  clearTimeout(toastTimer);      // cancel any existing dismiss timer
+  // Auto-dismiss after 2.8 seconds by removing the 'show' class
   toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-// ── OFFLINE SYNC ──
-window.addEventListener('online',  () => { if (db) { showToast('🔥 Back online — syncing…'); loadBrain(); } });
-window.addEventListener('offline', () => showToast('📴 Offline — using local brain'));
 
-// ── AUTO-RESTORE FIREBASE CONFIG ──
-(function() {
-  const saved = localStorage.getItem('quip_fbConfig');
-  if (saved) {
-    try {
-      const cfg = JSON.parse(saved);
-      document.getElementById('fbApiKey').value    = cfg.apiKey    || '';
-      document.getElementById('fbProjectId').value = cfg.projectId || '';
-      document.getElementById('fbAppId').value     = cfg.appId     || '';
-    } catch {}
+// ───────────────────────────────────────────────────────────────
+//  SECTION 18: ONLINE / OFFLINE DETECTION
+//
+//  The browser fires 'online' and 'offline' events when
+//  network connectivity changes (e.g. WiFi drops or reconnects).
+//  QUIP listens for these and syncs accordingly.
+// ───────────────────────────────────────────────────────────────
+
+// When the browser reconnects to the internet after being offline
+window.addEventListener('online', () => {
+  if (db) {
+    showToast('🔥 Back online — syncing…');
+    loadBrain(); // re-fetch the latest global brain from Firestore
   }
-})();
+});
 
-// ── BOOT ──
+// When the browser loses internet connection
+window.addEventListener('offline', () => {
+  showToast('📴 Offline — using local brain');
+  // The app continues to work using localStorage — no data is lost
+});
+
+
+// ───────────────────────────────────────────────────────────────
+//  SECTION 19: BOOT SEQUENCE
+//
+//  This runs immediately when the page finishes loading.
+//  It's wrapped in an IIFE (Immediately Invoked Function Expression)
+//  so it executes without needing to be called separately.
+//
+//  Boot order:
+//  1. Load brain from localStorage (instant — no network needed)
+//  2. Render the sidebar with local data
+//  3. Connect to Firebase (async — may take 1-2 seconds)
+//  4. Firebase overwrites local data with the global version once loaded
+// ───────────────────────────────────────────────────────────────
+
 (function boot() {
-  // Load local brain immediately
+  // Step 1: Load whatever brain data exists in localStorage
+  // This makes the sidebar look populated immediately — no blank state on load
   loadBrainLocally();
+
+  // Step 2: Render the sidebar with the locally loaded data
   updateSidebar();
 
-  // QUIP intro greeting (after a small delay)
-  setTimeout(() => {
-    // Check if Firebase config is stored
-    const saved = localStorage.getItem('quip_fbConfig');
-    if (!saved) {
-      // Show setup modal
-    } else {
-      // Try to auto-connect
-    }
-  }, 300);
-})();
+  // Step 3: Connect to Firebase using the hardcoded config (Section 9)
+  // Once connected, loadBrain() will be called and the global state
+  // will overwrite the local state with the worldwide personality data
+  connectFirebase();
+
+})(); // The () at the end means this function runs immediately
+
 </script>
 </body>
 </html>
